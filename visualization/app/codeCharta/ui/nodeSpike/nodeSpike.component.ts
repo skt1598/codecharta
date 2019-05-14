@@ -1,9 +1,7 @@
 import "./nodeSpike.component.scss"
-import _ from "lodash"
 declare var STANDALONE: String
 
 export class NodeSpikeController {
-
 	public env: String
 
 	constructor() {
@@ -23,16 +21,15 @@ export class NodeSpikeController {
 	}
 
 	public launch_editor() {
-		var cmdString = 'start '+ 'C:/Users/AlexH/Desktop/codecharta/README.md';
+		var cmdString = "start " + "C:/Users/AlexH/Desktop/codecharta/README.md"
 
-		require('child_process').exec(cmdString , function (err, stdout, stderr) {
-        	if (err) {
-            	return console.log(err);
-        	}
-        	console.log(stdout);
-		});
+		require("child_process").exec(cmdString, function(err, stdout, stderr) {
+			if (err) {
+				return console.log(err)
+			}
+			console.log(stdout)
+		})
 	}
-
 }
 
 export const nodeSpikeComponent = {
