@@ -18,8 +18,19 @@ export class NodeSpikeController {
 		window.open("file:///C:/Users/AlexH/Desktop/codecharta/")
 	}
 
+	public open_file() {
+		window.open("vscode:///C:/Users/AlexH/Desktop/codecharta/README.md")
+	}
+
 	public launch_editor() {
-		window.open("file:///C:/Users/AlexH/Desktop/codecharta/README.md")
+		var cmdString = 'start '+ 'C:/Users/AlexH/Desktop/codecharta/README.md';
+
+		require('child_process').exec(cmdString , function (err, stdout, stderr) {
+        	if (err) {
+            	return console.log(err);
+        	}
+        	console.log(stdout);
+		});
 	}
 
 }
