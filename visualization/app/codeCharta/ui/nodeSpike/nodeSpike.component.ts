@@ -20,6 +20,8 @@ export class NodeSpikeController {
 		window.open("vscode:///C:/Users/AlexH/Desktop/codecharta/README.md")
 	}
 
+	//mac: open
+	//windows: start
 	public launch_editor() {
 		let cmdString = "start " + "C:/Users/AlexH/Desktop/codecharta/README.md"
 
