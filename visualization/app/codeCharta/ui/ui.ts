@@ -1,6 +1,6 @@
-"use strict";
+"use strict"
 
-import angular from "angular";
+import angular from "angular"
 
 // Plop: Append module import here
 import "./areaSettingsPanel/areaSettingsPanel.module";
