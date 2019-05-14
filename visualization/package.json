@@ -62,7 +62,7 @@
 	},
 	"scripts": {
 		"start": "run --mirror https://dl.nwjs.io/ .",
-		"build": "webpack --config ./conf/webpack.config.js",
+		"build": "webpack --config ./conf/webpack.config.js --env.STANDALONE=true",
 		"test": "jest .*\\.spec\\.ts --runInBand",
 		"test:auto": "jest .*\\.spec\\.ts --watch",
 		"test:autoNoCoverage": "jest .*\\.spec\\.ts --watch --coverage false",
@@ -70,7 +70,7 @@
 		"e2e": "jest .*\\.e2e\\.ts --coverage false",
 		"e2e:auto": "jest .*\\.e2e\\.ts --watch --coverage false",
 		"doc": "rimraf dist/docs && typedoc --module es2015 --target ES6 --exclude **/*.spec.ts --out dist/docs/ --name CodeCharta app/**/*.ts",
-		"serve": "webpack --config ./conf/webpack.config.js --watch",
+		"serve": "webpack --config ./conf/webpack.config.js --watch --env.STANDALONE=false",
 		"package": "rimraf dist/packages && build --concurrent --tasks win-x86,win-x64,linux-x86,linux-x64,mac-x64 --mirror https://dl.nwjs.io/ . && bestzip ./dist/packages/codecharta-visualization-$npm_package_version-web.zip ./dist/webpack",
 		"prepare": "npm run build",
 		"g": "plop",
@@ -129,7 +129,7 @@
 		"angularjs-nouislider": "^1.0.1",
 		"nouislider": "^13.1.1",
 		"nwjs-builder-phoenix": "^1.14.6",
-		"shelljs": "^0.8.1"
+		"shelljs": "^0.8.3"
 	},
 	"devDependencies": {
 		"@types/angular": "^1.6.43",
@@ -178,8 +178,8 @@
 		"jest-serializer-html": "^6.0.0",
 		"jquery": "^3.3.1",
 		"json-loader": "^0.5.7",
-		"lodash": "^4.17.11",
 		"load-grunt-tasks": "^4.0.0",
+		"lodash": "^4.17.11",
 		"makeshift": "^1.1.0",
 		"minimatch": "^3.0.4",
 		"ng-annotate-loader": "^0.6.1",

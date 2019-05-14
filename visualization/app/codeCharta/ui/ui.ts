@@ -28,6 +28,7 @@ import "./settingsPanel/settingsPanel.module";
 import "./sidenav/sidenav.module";
 import "./viewCube/viewCube.module";
 import "./weblinksPanel/weblinksPanel.module";
+import "./nodeSpike/nodeSpike.module";
 
 angular.module(
     "app.codeCharta.ui",
@@ -58,4 +59,5 @@ angular.module(
         "app.codeCharta.ui.sidenav",
         "app.codeCharta.ui.viewCube",
         "app.codeCharta.ui.weblinksPanel",
+        "app.codeCharta.ui.nodeSpike"
     ]);
