@@ -1,1 +1,7 @@
 <p>This is standalone: {{ $ctrl.env }} </p>
+
+<div ng-if="$ctrl.env == 'true'">
+    <button ng-click="$ctrl.exclusive()">ExclusiveFn</button><br>
+    <button ng-click="$ctrl.open_folder()">Open Folder</button><br>
+    <button ng-click="$ctrl.launch_editor()">Launch Program</button>
+</div>

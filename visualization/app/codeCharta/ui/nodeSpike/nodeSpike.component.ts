@@ -4,10 +4,22 @@ declare var STANDALONE: String
 
 export class NodeSpikeController {
 
-	public env
+	public env: String
 
 	constructor() {
 		this.env = STANDALONE
+	}
+
+	public exclusive() {
+		alert("1")
+	}
+
+	public open_folder() {
+		window.open("file:///C:/Users/AlexH/Desktop/codecharta/")
+	}
+
+	public launch_editor() {
+		window.open("file:///C:/Users/AlexH/Desktop/codecharta/README.md")
 	}
 
 }
