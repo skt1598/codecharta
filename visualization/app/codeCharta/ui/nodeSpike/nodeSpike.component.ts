@@ -21,13 +21,13 @@ export class NodeSpikeController {
 	}
 
 	public launch_editor() {
-		var cmdString = "start " + "C:/Users/AlexH/Desktop/codecharta/README.md"
+		let cmdString = "start " + "C:/Users/AlexH/Desktop/codecharta/README.md"
 
-		require("child_process").exec(cmdString, function(err, stdout, stderr) {
+		require("child_process").exec(cmdString, (err, stdout, stderr) => {
 			if (err) {
-				return console.log(err)
+				return console.warn(err)
 			}
-			console.log(stdout)
+			console.warn(stdout)
 		})
 	}
 }
