@@ -23,7 +23,9 @@ export class NodeSpikeController {
 	//mac: open
 	//windows: start
 	public launch_editor() {
-		if (STANDALONE !== "true") return
+		if (STANDALONE !== "true") {
+			return
+		}
 
 		let cmdString = "start " + "C:/Users/AlexH/Desktop/codecharta/README.md"
 
