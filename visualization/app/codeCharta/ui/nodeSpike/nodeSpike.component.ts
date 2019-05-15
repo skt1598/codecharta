@@ -1,4 +1,6 @@
 import "./nodeSpike.component.scss"
+// Available for node only. Does this break non-node?
+import * as fs from "fs"
 declare var STANDALONE: String
 
 export class NodeSpikeController {
@@ -34,6 +36,16 @@ export class NodeSpikeController {
 				return console.warn(err)
 			}
 			console.warn(stdout)
+		})
+	}
+
+	public write_file() {
+		fs.writeFile("C:/Users/AlexH/Desktop/testme.txt", "Hey there!", function(err) {
+			if (err) {
+				return console.log(err)
+			}
+
+			console.log("The file was saved!")
 		})
 	}
 }
