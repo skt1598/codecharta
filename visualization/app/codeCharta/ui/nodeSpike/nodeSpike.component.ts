@@ -1,7 +1,4 @@
 import "./nodeSpike.component.scss"
-// Available for node only. Does this break non-node?
-import * as fs from "fs"
-import * as path from "path"
 declare var STANDALONE: String
 
 export class NodeSpikeController {
@@ -28,13 +25,16 @@ export class NodeSpikeController {
 	//mac: open
 	//windows: start
 	public launch_editor() {
-		if (STANDALONE !== "true") {
+		let child_process = null
+		if (STANDALONE === "true") {
+			child_process = require("child_process")
+		} else {
 			return
 		}
 
 		let cmdString = "start " + this.folder + "/" + this.file
 
-		require("child_process").exec(cmdString, (err, stdout, stderr) => {
+		child_process.exec(cmdString, (err, stdout, stderr) => {
 			if (err) {
 				return console.warn(err)
 			}
@@ -43,6 +43,11 @@ export class NodeSpikeController {
 	}
 
 	public write_file() {
+		// import * as fs from "fs" will break non-standalone version
+		if (STANDALONE !== "true") {
+			return
+		}
+		const fs = require("fs")
 		fs.writeFile(this.folder + "/" + this.file, "Hey there!", function(err) {
 			if (err) {
 				return alert(err)
@@ -53,6 +58,11 @@ export class NodeSpikeController {
 	}
 
 	public get_path() {
+		// import * as path from "path" will break non-standalone version
+		if (STANDALONE !== "true") {
+			return
+		}
+		const path = require("path")
 		var absolutePath = path.resolve("./")
 		alert(absolutePath)
 	}
