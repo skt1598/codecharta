@@ -7,8 +7,7 @@ const CleanWebpackPlugin = require("clean-webpack-plugin")
 const dist = path.resolve(__dirname, "../dist/webpack")
 
 module.exports = env => {
-	return {
-		target: "node",
+	var exports = {
 		entry: "./app/app.ts",
 		output: {
 			filename: "bundle.js",
@@ -34,4 +33,8 @@ module.exports = env => {
 			extensions: [".ts", ".tsx", ".js"]
 		}
 	}
+	if (env.STANDALONE === "true") {
+		exports.target = "node"
+	}
+	return exports
 }

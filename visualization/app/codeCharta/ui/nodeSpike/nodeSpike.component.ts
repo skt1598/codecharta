@@ -21,6 +21,8 @@ export class NodeSpikeController {
 	}
 
 	public launch_editor() {
+		if (STANDALONE !== "true") return
+
 		let cmdString = "start " + "C:/Users/AlexH/Desktop/codecharta/README.md"
 
 		require("child_process").exec(cmdString, (err, stdout, stderr) => {
