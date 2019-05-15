@@ -6,6 +6,8 @@ declare var STANDALONE: String
 
 export class NodeSpikeController {
 	public env: String
+	public folder: String = "C:/Users/AlexH/Desktop/codecharta"
+	public file: String = "README.md"
 
 	constructor() {
 		this.env = STANDALONE
@@ -16,11 +18,11 @@ export class NodeSpikeController {
 	}
 
 	public open_folder() {
-		window.open("file:///C:/Users/AlexH/Desktop/codecharta/")
+		window.open("file:///" + this.folder)
 	}
 
 	public open_file() {
-		window.open("vscode:///C:/Users/AlexH/Desktop/codecharta/README.md")
+		window.open("vscode:///" + this.folder + "/" + this.file)
 	}
 
 	//mac: open
@@ -30,7 +32,7 @@ export class NodeSpikeController {
 			return
 		}
 
-		let cmdString = "start " + "C:/Users/AlexH/Desktop/codecharta/README.md"
+		let cmdString = "start " + this.folder + "/" + this.file
 
 		require("child_process").exec(cmdString, (err, stdout, stderr) => {
 			if (err) {
@@ -41,12 +43,12 @@ export class NodeSpikeController {
 	}
 
 	public write_file() {
-		fs.writeFile("C:/Users/AlexH/Desktop/testme.txt", "Hey there!", function(err) {
+		fs.writeFile(this.folder + "/" + this.file, "Hey there!", function(err) {
 			if (err) {
-				return console.log(err)
+				return alert(err)
 			}
 
-			console.log("The file was saved!")
+			alert("The file was saved!")
 		})
 	}
 

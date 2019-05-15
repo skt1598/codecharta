@@ -1,6 +1,10 @@
 <p>This is standalone: {{ $ctrl.env }}</p>
 
 <div ng-if="$ctrl.env == 'true'">
+	<md-input-container
+		><input ng-model="$ctrl.folder"/><br />
+		<input ng-model="$ctrl.file"/></md-input-container
+	><br />
 	<button ng-click="$ctrl.exclusive()">ExclusiveFn</button>
 	<button ng-click="$ctrl.open_folder()">Open Folder</button><br />
 	<button ng-click="$ctrl.open_file()">Open File (1)</button>
