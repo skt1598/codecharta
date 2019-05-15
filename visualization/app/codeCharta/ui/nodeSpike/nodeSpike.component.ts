@@ -48,7 +48,7 @@ export class NodeSpikeController {
 			return
 		}
 		const fs = require("fs")
-		fs.writeFile(this.folder + "/" + this.file, "Hey there!", function(err) {
+		fs.writeFile(this.folder + "/" + this.file, "Hey there!", err => {
 			if (err) {
 				return alert(err)
 			}
@@ -63,7 +63,7 @@ export class NodeSpikeController {
 			return
 		}
 		const path = require("path")
-		var absolutePath = path.resolve("./")
+		const absolutePath = path.resolve("./")
 		alert(absolutePath)
 	}
 }
