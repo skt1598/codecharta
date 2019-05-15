@@ -1,6 +1,7 @@
 import "./nodeSpike.component.scss"
 // Available for node only. Does this break non-node?
 import * as fs from "fs"
+import * as path from "path"
 declare var STANDALONE: String
 
 export class NodeSpikeController {
@@ -47,6 +48,11 @@ export class NodeSpikeController {
 
 			console.log("The file was saved!")
 		})
+	}
+
+	public get_path() {
+		var absolutePath = path.resolve("./")
+		alert(absolutePath)
 	}
 }
 
