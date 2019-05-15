@@ -25,10 +25,10 @@ export class NodeSpikeController {
 	//mac: open
 	//windows: start
 	public launch_editor() {
-		let child_process = null
-		if (STANDALONE === "true") {
+		let child_process
+		try {
 			child_process = require("child_process")
-		} else {
+		} catch {
 			return
 		}
 
@@ -44,10 +44,12 @@ export class NodeSpikeController {
 
 	public write_file() {
 		// import * as fs from "fs" will break non-standalone version
-		if (STANDALONE !== "true") {
+		let fs
+		try {
+			fs = require("fs")
+		} catch {
 			return
 		}
-		const fs = require("fs")
 		fs.writeFile(this.folder + "/" + this.file, "Hey there!", err => {
 			if (err) {
 				return alert(err)
@@ -59,10 +61,12 @@ export class NodeSpikeController {
 
 	public get_path() {
 		// import * as path from "path" will break non-standalone version
-		if (STANDALONE !== "true") {
+		let path
+		try {
+			path = require("path")
+		} catch {
 			return
 		}
-		const path = require("path")
 		const absolutePath = path.resolve("./")
 		alert(absolutePath)
 	}
