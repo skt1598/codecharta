@@ -13,18 +13,23 @@ import org.sonarsource.dotnet.shared.plugins.*
 import org.sonar.api.batch.fs.InputFile
 import org.sonar.api.batch.fs.internal.TestInputFileBuilder
 import org.sonar.api.batch.fs.internal.DefaultInputFile
+import org.sonar.api.batch.fs.internal.FileMetadata
 import java.io.File
+import java.io.FileReader
 import java.nio.charset.StandardCharsets
+import java.nio.file.Paths
 
 
 class DotnetSonarAnalyzer(verbose: Boolean = false, searchIssues: Boolean = true) : SonarAnalyzer(verbose, searchIssues) {
-    override val FILE_EXTENSION = "vb"
+    override val FILE_EXTENSION = "frm"
+    private val LANGUAGE_KEY = "vbnet"
     private val SONAR_VERSION_MAJOR = 7
     private val SONAR_VERSION_MINOR = 3
 
     override fun createContext() {
         sensorContext = SensorContextTester.create(baseDir)
         sensorContext.setRuntime(SonarRuntimeImpl.forSonarQube(Version.create(SONAR_VERSION_MAJOR, SONAR_VERSION_MINOR), SonarQubeSide.SERVER))
+        sensorContext.fileSystem().setWorkDir(baseDir.toPath())
     }
 
     override fun buildSonarComponents() {
@@ -43,12 +48,13 @@ class DotnetSonarAnalyzer(verbose: Boolean = false, searchIssues: Boolean = true
     }
 
     override fun executeScan() {
-        createContext()
         val metadata: DotNetPluginMetadata = VbNetPluginMetadata()
         val protobufDataImporter = ProtobufDataImporter(NullFileLinesContextFactory(), NoSonarFilter())
         val reportPathCollector = ReportPathCollector()
+        reportPathCollector.addProtobufDirs(listOf(baseDir.toPath()))
+        //reportPathCollector.addRoslynDirs(listOf(RoslynReport(null, Paths.get(baseDir.toString()))))
         val configuration: Configuration = MapSettings().asConfig()
-        val abstractConfiguration = object : AbstractConfiguration(configuration, "vb") {}
+        val abstractConfiguration = object : AbstractConfiguration(configuration, LANGUAGE_KEY) {}
         val roslynDataImporter = RoslynDataImporter(abstractConfiguration)
         val sensor = DotNetSensor(metadata, reportPathCollector, protobufDataImporter, roslynDataImporter)
         sensor.execute(sensorContext)
