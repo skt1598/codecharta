@@ -1,19 +1,19 @@
 file-panel-component {
 	width: calc(100% - 150px);
 	min-width: 400px;
-	display: block;
+	display: inline-block;
 
 	.delta-chooser {
-		min-width: 600px;
+		position: absolute;
+		display: inline-block;
+		min-width: 70%;
 	}
 
 	.mode-chooser {
-		display: block;
-		float: left;
+		display: inline-block;
+		vertical-align: middle;
 		margin-left: 10px;
 		margin-right: 10px;
-		margin-top: 5px;
-		margin-bottom: 3px;
 	}
 
 	.state-selector-button {
@@ -48,21 +48,18 @@ file-panel-component {
 	}
 
 	.pictogram {
-		display: block;
-		float: left;
+		display: inline-block;
 		width: 10px;
 		margin-right: 5px;
-		margin-top: 6.5px;
 		padding-left: 5px;
 		min-height: 22px;
 		border-radius: 2px;
+		vertical-align: middle;
 	}
 
 	md-input-container {
-		display: block;
+		display: inline-block;
 		text-align: left;
-		float: left;
-		margin: 0;
 		font-size: 11pt;
 		width: calc(100% - 250px);
 		max-width: 300px;
@@ -78,7 +75,6 @@ file-panel-component {
 			.md-select-value {
 				background: white;
 				margin-right: 5px;
-				margin-top: 5px;
 				border-radius: 5px;
 				padding-left: 5px;
 				min-height: 22px;

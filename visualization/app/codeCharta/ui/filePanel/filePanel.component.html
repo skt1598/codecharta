@@ -4,14 +4,12 @@
 		ng-class="{current: $ctrl._viewModel.isSingleState}"
 		ng-click="$ctrl.onSingleStateSelected()"
 		><span class="text">Single</span></md-button
-	>
-	<md-button
+	><md-button
 		class="state-selector-button middle"
 		ng-class="{current: $ctrl._viewModel.isPartialState}"
 		ng-click="$ctrl.onPartialStateSelected()"
 		><span class="text">Multiple</span></md-button
-	>
-	<md-button
+	><md-button
 		class="state-selector-button right"
 		ng-class="{current: $ctrl._viewModel.isDeltaState}"
 		ng-click="$ctrl.onDeltaStateSelected()"
