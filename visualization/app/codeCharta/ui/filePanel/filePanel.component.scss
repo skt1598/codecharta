@@ -17,32 +17,33 @@ file-panel-component {
 	}
 
 	.state-selector-button {
-		height: 24px !important;
-		width: 55px !important;
-		background-color: #ffffff !important;
+		&.toolbar-selector {
+			height: 24px;
+			width: 55px;
+			background-color: #ffffff;
 
-		&.middle {
-			border-left: 1px solid rgba(230, 230, 230, 0.96) !important;
-			border-right: 1px solid rgba(230, 230, 230, 0.96) !important;
-		}
+			&.middle {
+				border-left: 1px solid rgba(230, 230, 230, 0.96);
+				border-right: 1px solid rgba(230, 230, 230, 0.96);
+			}
 
-		&.current {
-			background-color: rgb(0, 150, 136) !important;
-			color: #ffffff !important;
-		}
+			&.current {
+				background-color: rgb(0, 150, 136);
+				color: #ffffff;
+			}
 
-		&.current:hover {
-			background-color: rgb(0, 150, 136) !important;
-		}
+			&.current:hover {
+				background-color: rgb(0, 150, 136);
+			}
 
-		.text {
-			display: block;
-			margin-top: -5px;
-			padding-top: -5px;
+			.text {
+				display: block;
+				margin-top: -5px;
 
-			&:active {
-				padding: -5px;
-				margin: -5px;
+				&:active {
+					padding: -5px;
+					margin: -5px;
+				}
 			}
 		}
 	}
