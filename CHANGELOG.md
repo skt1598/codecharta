@@ -17,6 +17,31 @@ and this project adheres to [Semantic Versioning](http://semver.org/)
 
 ### Chore
 
+## [1.37.0] - 2019-10-25
+
+### Added
+
+- Sidebar with information regarding the selected building #527
+- Sidebar closes when selected buildings is excluded #748
+
+### Changed
+
+- Animation to show or hide the legend panel #527
+
+### Removed
+
+- Expandable detail panel in lower left corner #527
+- Removed option to maximize/minimize detail panel #527
+
+### Fixed
+
+- Autofocus and label size for focused nodes #747
+- Selected buildings stays selected when settings are changed #748
+- IllegalStateException when scanning single file in SourceCodeParser #573
+- SourceCodeParser places files in the project root correctly into the hierarchy #574
+
+### Chore
+
 ## [1.36.0] - 2019-10-18
 
 ### Added
