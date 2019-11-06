@@ -11,10 +11,9 @@ tool-bar-component {
 		min-height: 24px;
 		border-radius: 100%;
 		line-height: 50%;
-		margin: 5px 5px 5px 0px;
+		margin: 0 5px 0 0px;
 		background-color: rgb(0, 150, 136);
 		color: white;
-		border-bottom: 1px solid #cdcdcd;
 		&:hover {
 			background-color: rgb(0, 124, 112) !important;
 		}
