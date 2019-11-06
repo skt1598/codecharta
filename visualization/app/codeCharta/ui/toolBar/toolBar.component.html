@@ -5,7 +5,8 @@
 		<i class="fa fa-download"></i>
 	</md-button>
 
-	<file-panel-component></file-panel-component>
+	<file-panel-component ng-class="{ hidden: $ctrl._viewModel.nodeHovered }"></file-panel-component>
+	<node-path-panel-component ng-class="{ hidden: !$ctrl._viewModel.nodeHovered }"></node-path-panel-component>
 
 	<div class="right-aligned">
 		<loading-gif-map-component></loading-gif-map-component>
