@@ -240,34 +240,6 @@ describe("MapTreeViewLevelController", () => {
 		})
 	})
 
-	describe("isBlacklisted", () => {
-		it("should call CodeMapHelper.isBlacklisted", () => {
-			CodeMapHelper.isBlacklisted = jest.fn()
-
-			mapTreeViewLevelController["node"] = CodeMapHelper.getCodeMapNodeFromPath(
-				"/root/Parent Leaf/empty folder",
-				"Folder",
-				VALID_NODE_WITH_PATH
-			)
-
-			mapTreeViewLevelController.isBlacklisted(mapTreeViewLevelController["node"])
-
-			expect(CodeMapHelper.isBlacklisted).toHaveBeenCalledWith(
-				mapTreeViewLevelController["node"],
-				storeService.getState().fileSettings.blacklist,
-				BlacklistType.exclude
-			)
-		})
-
-		it("should not be blacklisted", () => {
-			CodeMapHelper.isBlacklisted = jest.fn()
-
-			const result = mapTreeViewLevelController.isBlacklisted(mapTreeViewLevelController["node"])
-
-			expect(result).toBeFalsy()
-		})
-	})
-
 	describe("isSearched", () => {
 		it("should be searched", () => {
 			mapTreeViewLevelController["node"] = CodeMapHelper.getCodeMapNodeFromPath(

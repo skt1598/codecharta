@@ -1,8 +1,7 @@
 import * as d3 from "d3"
-import { STATE, TEST_DELTA_MAP_A, VALID_NODE_WITH_PATH_AND_DELTAS } from "./dataMocks"
-import { CCFile, MetricData, BlacklistItem, CodeMapNode, FileMeta } from "../codeCharta.model"
+import { TEST_DELTA_MAP_A, VALID_NODE_WITH_PATH_AND_DELTAS } from "./dataMocks"
+import { CCFile, MetricData, CodeMapNode, FileMeta } from "../codeCharta.model"
 import { NodeDecorator } from "./nodeDecorator"
-import { CodeMapHelper } from "./codeMapHelper"
 import _ from "lodash"
 
 describe("nodeDecorator", () => {
@@ -11,7 +10,6 @@ describe("nodeDecorator", () => {
 	let deltaMap: CodeMapNode
 	let fileMeta: FileMeta
 	let metricData: MetricData[]
-	let blacklist: BlacklistItem[]
 
 	beforeEach(() => {
 		file = _.cloneDeep(TEST_DELTA_MAP_A)
@@ -23,17 +21,12 @@ describe("nodeDecorator", () => {
 			{ name: "functions", maxValue: 999999, availableInVisibleMaps: true },
 			{ name: "mcc", maxValue: 999999, availableInVisibleMaps: true }
 		]
-		blacklist = _.cloneDeep(STATE.fileSettings.blacklist)
 	})
 
 	describe("decorateMap", () => {
-		beforeEach(() => {
-			CodeMapHelper.isBlacklisted = jest.fn()
-		})
-
 		it("should aggregate given metrics correctly", () => {
 			let result = NodeDecorator.decorateMap(map, fileMeta, metricData)
-			result = NodeDecorator.decorateParentNodesWithSumAttributes(result, blacklist, metricData, [], false)
+			result = NodeDecorator.decorateParentNodesWithSumAttributes(result, metricData, [], false)
 
 			expect(result.attributes["rloc"]).toBe(200)
 			expect(result.attributes["functions"]).toBe(1110)
@@ -43,7 +36,7 @@ describe("nodeDecorator", () => {
 		it("should aggregate missing metrics correctly", () => {
 			metricData.push({ name: "some", maxValue: 999999, availableInVisibleMaps: true })
 			let result = NodeDecorator.decorateMap(map, fileMeta, metricData)
-			result = NodeDecorator.decorateParentNodesWithSumAttributes(result, blacklist, metricData, [], false)
+			result = NodeDecorator.decorateParentNodesWithSumAttributes(result, metricData, [], false)
 
 			expect(result.attributes["rloc"]).toBe(200)
 			expect(result.attributes["some"]).toBe(0)
@@ -252,7 +245,7 @@ describe("nodeDecorator", () => {
 			metricData.push({ name: "some", maxValue: 999999, availableInVisibleMaps: true })
 
 			let result = NodeDecorator.decorateMap(map, fileMeta, metricData)
-			result = NodeDecorator.decorateParentNodesWithSumAttributes(result, blacklist, metricData, [], false)
+			result = NodeDecorator.decorateParentNodesWithSumAttributes(result, metricData, [], false)
 			let h = d3.hierarchy(result)
 			h.each(node => {
 				expect(node.data.attributes).toBeDefined()
@@ -262,7 +255,7 @@ describe("nodeDecorator", () => {
 
 		it("all nodes should have an attribute list with listed and available metrics", () => {
 			let result = NodeDecorator.decorateMap(map, fileMeta, metricData)
-			result = NodeDecorator.decorateParentNodesWithSumAttributes(result, blacklist, metricData, [], false)
+			result = NodeDecorator.decorateParentNodesWithSumAttributes(result, metricData, [], false)
 			let h = d3.hierarchy(result)
 			h.each(node => {
 				expect(node.data.attributes).toBeDefined()
@@ -273,7 +266,7 @@ describe("nodeDecorator", () => {
 
 		it("folders should have sum attributes of children", () => {
 			let result = NodeDecorator.decorateMap(map, fileMeta, metricData)
-			result = NodeDecorator.decorateParentNodesWithSumAttributes(result, blacklist, metricData, [], false)
+			result = NodeDecorator.decorateParentNodesWithSumAttributes(result, metricData, [], false)
 			let h = d3.hierarchy(result)
 			expect(h.data.attributes["rloc"]).toBe(200)
 			expect(h.children[0].data.attributes["rloc"]).toBe(100)
@@ -282,7 +275,7 @@ describe("nodeDecorator", () => {
 
 		it("folders should have sum delta values of children", () => {
 			let result = NodeDecorator.decorateMap(deltaMap, fileMeta, metricData)
-			result = NodeDecorator.decorateParentNodesWithSumAttributes(result, blacklist, metricData, [], true)
+			result = NodeDecorator.decorateParentNodesWithSumAttributes(result, metricData, [], true)
 			let h = d3.hierarchy(result)
 			expect(h.data.deltas["rloc"]).toBe(295)
 			expect(h.children[0].data.deltas["rloc"]).toBe(300)

@@ -1,8 +1,7 @@
 import * as d3 from "d3"
 import { hierarchy, HierarchyNode, TreemapLayout } from "d3"
 import { TreeMapHelper } from "./treeMapHelper"
-import { CodeMapHelper } from "./codeMapHelper"
-import { CodeMapNode, BlacklistType, MetricData, Node, State } from "../codeCharta.model"
+import { CodeMapNode, MetricData, Node, State } from "../codeCharta.model"
 
 export interface SquarifiedValuedCodeMapNode {
 	data: CodeMapNode
@@ -31,9 +30,7 @@ export class TreeMapGenerator {
 
 	private static getSquarifiedTreeMap(map: CodeMapNode, s: State): SquarifiedValuedCodeMapNode {
 		let hierarchy: HierarchyNode<CodeMapNode> = d3.hierarchy<CodeMapNode>(map)
-		const nodeLeafs: CodeMapNode[] = hierarchy.descendants().map(d => d.data)
-		const blacklisted: number = CodeMapHelper.numberOfBlacklistedNodes(nodeLeafs, s.fileSettings.blacklist)
-		const nodesPerSide: number = 2 * Math.sqrt(hierarchy.descendants().length - blacklisted)
+		const nodesPerSide: number = 2 * Math.sqrt(hierarchy.descendants().length)
 		const mapLength: number = s.treeMap.mapSize * 2 + nodesPerSide * s.dynamicSettings.margin
 		const padding: number = s.dynamicSettings.margin * TreeMapGenerator.PADDING_SCALING_FACTOR
 		let treeMap: TreemapLayout<CodeMapNode> = d3
@@ -66,10 +63,6 @@ export class TreeMapGenerator {
 	}
 
 	private static calculateValue(node: CodeMapNode, s: State): number {
-		if (CodeMapHelper.isBlacklisted(node, s.fileSettings.blacklist, BlacklistType.exclude)) {
-			return 0
-		}
-
 		if (this.isOnlyVisibleInComparisonMap(node, s)) {
 			return Math.abs(node.deltas[s.dynamicSettings.areaMetric])
 		}

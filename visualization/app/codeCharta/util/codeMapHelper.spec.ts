@@ -132,40 +132,6 @@ describe("codeMapHelper", () => {
 		})
 	})
 
-	describe("numberOfBlacklistedNodes", () => {
-		beforeEach(() => {
-			blacklist = []
-		})
-
-		it("should return 0 if no blacklist is provided", () => {
-			const result = CodeMapHelper.numberOfBlacklistedNodes(testRoot.children, null)
-
-			expect(result).toBe(0)
-		})
-
-		it("should return 0 if empty blacklist is provided", () => {
-			const result = CodeMapHelper.numberOfBlacklistedNodes(testRoot.children, blacklist)
-
-			expect(result).toBe(0)
-		})
-
-		it("should return 1 if only one node is blacklisted and provided for nodes", () => {
-			addRootToBlacklist()
-
-			const result = CodeMapHelper.numberOfBlacklistedNodes([testRoot], blacklist)
-
-			expect(result).toBe(1)
-		})
-
-		it("should return 1 if only one sub-node is blacklisted and but root and sub-node are provided for nodes", () => {
-			addSubNodeToBlacklist()
-
-			const result = CodeMapHelper.numberOfBlacklistedNodes([testRoot, testRoot.children[0]], blacklist)
-
-			expect(result).toBe(1)
-		})
-	})
-
 	describe("isBlacklisted", () => {
 		beforeEach(() => {
 			blacklist = []

@@ -11,11 +11,9 @@ import {
 } from "../../util/dataMocks"
 import { FileExtensionCalculator, MetricDistribution } from "../../util/fileExtensionCalculator"
 import { FileExtensionBarController } from "./fileExtensionBar.component"
-import { BlacklistType } from "../../codeCharta.model"
 import { StoreService } from "../../state/store.service"
 import { ThreeSceneService } from "../codeMap/threeViewer/threeSceneService"
 import { CodeMapBuilding } from "../codeMap/rendering/codeMapBuilding"
-import { addBlacklistItem } from "../../state/store/fileSettings/blacklist/blacklist.actions"
 import { setDistributionMetric } from "../../state/store/dynamicSettings/distributionMetric/distributionMetric.actions"
 
 describe("FileExtensionBarController", () => {
@@ -73,21 +71,7 @@ describe("FileExtensionBarController", () => {
 
 			fileExtensionBarController.onRenderMapChanged(TEST_FILE_WITH_PATHS.map)
 
-			expect(FileExtensionCalculator.getMetricDistribution).toHaveBeenCalledWith(TEST_FILE_WITH_PATHS.map, "mcc", [])
-		})
-
-		it("should call getMetricDistribution with a blacklist", () => {
-			const blacklistEntry = { path: "a/path", type: BlacklistType.exclude }
-			storeService.dispatch(addBlacklistItem(blacklistEntry))
-			storeService.dispatch(setDistributionMetric("mcc"))
-
-			fileExtensionBarController.onRenderMapChanged(TEST_FILE_WITH_PATHS.map)
-
-			expect(FileExtensionCalculator.getMetricDistribution).toHaveBeenCalledWith(
-				TEST_FILE_WITH_PATHS.map,
-				"mcc",
-				storeService.getState().fileSettings.blacklist
-			)
+			expect(FileExtensionCalculator.getMetricDistribution).toHaveBeenCalledWith(TEST_FILE_WITH_PATHS.map, "mcc")
 		})
 
 		it("should set the color of given extension attribute", () => {

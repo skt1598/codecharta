@@ -1,8 +1,7 @@
 "use strict"
 import * as d3 from "d3"
 import { HierarchyNode } from "d3"
-import { BlacklistItem, BlacklistType, CCFile, CodeMapNode, MetricData, FileMeta, EdgeMetricCount, KeyValuePair } from "../codeCharta.model"
-import { CodeMapHelper } from "./codeMapHelper"
+import { CCFile, CodeMapNode, MetricData, FileMeta, EdgeMetricCount, KeyValuePair } from "../codeCharta.model"
 import _ from "lodash"
 
 export class NodeDecorator {
@@ -98,7 +97,6 @@ export class NodeDecorator {
 
 	public static decorateParentNodesWithSumAttributes(
 		map: CodeMapNode,
-		blacklist: BlacklistItem[],
 		metricData: MetricData[],
 		edgeMetricData: MetricData[],
 		isDeltaState: boolean
@@ -106,9 +104,7 @@ export class NodeDecorator {
 		if (map) {
 			let root = d3.hierarchy<CodeMapNode>(map)
 			root.each((node: HierarchyNode<CodeMapNode>) => {
-				const leaves: HierarchyNode<CodeMapNode>[] = node
-					.leaves()
-					.filter(x => !CodeMapHelper.isBlacklisted(x.data, blacklist, BlacklistType.exclude))
+				const leaves: HierarchyNode<CodeMapNode>[] = node.leaves()
 				this.decorateNodeWithChildrenSumMetrics(leaves, node, metricData, isDeltaState)
 				this.decorateNodeWithChildrenSumEdgeMetrics(leaves, node, edgeMetricData)
 			})

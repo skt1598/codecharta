@@ -1,6 +1,6 @@
 "use strict"
 
-import { CCFile, FileSelectionState, FileState, MetricData, CodeMapNode, FileMeta } from "../../codeCharta.model"
+import { CCFile, FileSelectionState, FileState, MetricData, CodeMapNode, FileMeta, BlacklistType } from "../../codeCharta.model"
 import { IRootScopeService } from "angular"
 import { FileStateService } from "../../state/fileState.service"
 import { NodeDecorator } from "../../util/nodeDecorator"
@@ -17,6 +17,7 @@ import { StoreService, StoreSubscriber } from "../../state/store.service"
 import { ScalingService, ScalingSubscriber } from "../../state/store/appSettings/scaling/scaling.service"
 import _ from "lodash"
 import { ScalingActions } from "../../state/store/appSettings/scaling/scaling.actions"
+import { CodeMapHelper } from "../../util/codeMapHelper"
 
 export interface CodeMapPreRenderServiceSubscriber {
 	onRenderMapChanged(map: CodeMapNode)
@@ -76,9 +77,21 @@ export class CodeMapPreRenderService implements StoreSubscriber, MetricServiceSu
 	public onMetricDataRemoved() {}
 
 	private updateRenderMapAndFileMeta() {
-		const unifiedFile: CCFile = this.getSelectedFilesAsUnifiedMap()
+		const unifiedFile: CCFile = _.cloneDeep(this.getSelectedFilesAsUnifiedMap())
+		this.removeExcludedNodes(unifiedFile.map)
 		this.unifiedMap = unifiedFile.map
 		this.unifiedFileMeta = unifiedFile.fileMeta
+	}
+
+	private removeExcludedNodes(node: CodeMapNode) {
+		const blacklist = this.storeService.getState().fileSettings.blacklist
+		if (node.children && node.children.length > 0) {
+			node.children = node.children.filter(child => !CodeMapHelper.isBlacklisted(child, blacklist, BlacklistType.exclude))
+		}
+
+		if (node.children && node.children.length > 0) {
+			node.children.forEach(child => this.removeExcludedNodes(child))
+		}
 	}
 
 	private decorateIfPossible() {
@@ -87,7 +100,6 @@ export class CodeMapPreRenderService implements StoreSubscriber, MetricServiceSu
 			this.getEdgeMetricsForLeaves(this.unifiedMap)
 			NodeDecorator.decorateParentNodesWithSumAttributes(
 				this.unifiedMap,
-				this.storeService.getState().fileSettings.blacklist,
 				this.metricService.getMetricData(),
 				this.edgeMetricDataService.getMetricData(),
 				FileStateHelper.isDeltaState(this.fileStateService.getFileStates())

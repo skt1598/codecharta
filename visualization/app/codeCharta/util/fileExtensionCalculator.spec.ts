@@ -22,7 +22,7 @@ describe("FileExtensionCalculator", () => {
 				{ fileExtension: "None", absoluteMetricValue: 15, relativeMetricValue: null, color: null }
 			]
 
-			const result: MetricDistribution[] = FileExtensionCalculator["getAbsoluteDistribution"](map, "rloc", [])
+			const result: MetricDistribution[] = FileExtensionCalculator["getAbsoluteDistribution"](map, "rloc")
 
 			expect(result).toEqual(expected)
 		})
@@ -38,50 +38,7 @@ describe("FileExtensionCalculator", () => {
 				{ fileExtension: "None", absoluteMetricValue: 15, relativeMetricValue: null, color: null }
 			]
 
-			const result: MetricDistribution[] = FileExtensionCalculator["getAbsoluteDistribution"](
-				map,
-				"rloc",
-				state.fileSettings.blacklist
-			)
-
-			expect(result).toEqual(expected)
-		})
-
-		it("should get correct absolute distribution of file-extensions for given metric with excluded node", () => {
-			const blacklistItem = { path: map.children[0].path, type: BlacklistType.exclude }
-			state.fileSettings.blacklist.push(blacklistItem)
-
-			const expected: MetricDistribution[] = [
-				{ fileExtension: "java", absoluteMetricValue: 162, relativeMetricValue: null, color: null },
-				{ fileExtension: "jpg", absoluteMetricValue: 30, relativeMetricValue: null, color: null },
-				{ fileExtension: "json", absoluteMetricValue: 70, relativeMetricValue: null, color: null },
-				{ fileExtension: "None", absoluteMetricValue: 15, relativeMetricValue: null, color: null }
-			]
-
-			const result: MetricDistribution[] = FileExtensionCalculator["getAbsoluteDistribution"](
-				map,
-				"rloc",
-				state.fileSettings.blacklist
-			)
-
-			expect(result).toEqual(expected)
-		})
-
-		it("should get correct absolute distribution of file-extensions for given metric with excluded path", () => {
-			const blacklistItem = { path: "*.java", type: BlacklistType.exclude }
-			state.fileSettings.blacklist.push(blacklistItem)
-
-			const expected: MetricDistribution[] = [
-				{ fileExtension: "jpg", absoluteMetricValue: 130, relativeMetricValue: null, color: null },
-				{ fileExtension: "json", absoluteMetricValue: 70, relativeMetricValue: null, color: null },
-				{ fileExtension: "None", absoluteMetricValue: 15, relativeMetricValue: null, color: null }
-			]
-
-			const result: MetricDistribution[] = FileExtensionCalculator["getAbsoluteDistribution"](
-				map,
-				"rloc",
-				state.fileSettings.blacklist
-			)
+			const result: MetricDistribution[] = FileExtensionCalculator["getAbsoluteDistribution"](map, "rloc")
 
 			expect(result).toEqual(expected)
 		})
@@ -104,7 +61,7 @@ describe("FileExtensionCalculator", () => {
 				}
 			]
 
-			const result: MetricDistribution[] = FileExtensionCalculator.getMetricDistribution(map, "rloc", [])
+			const result: MetricDistribution[] = FileExtensionCalculator.getMetricDistribution(map, "rloc")
 
 			expect(result).toEqual(expected)
 		})
@@ -116,7 +73,7 @@ describe("FileExtensionCalculator", () => {
 				{ fileExtension: "None", absoluteMetricValue: null, relativeMetricValue: 100, color: "#676867" }
 			]
 
-			const result: MetricDistribution[] = FileExtensionCalculator.getMetricDistribution(map, "rloc", [])
+			const result: MetricDistribution[] = FileExtensionCalculator.getMetricDistribution(map, "rloc")
 
 			expect(result).toEqual(expected)
 		})
@@ -159,7 +116,7 @@ describe("FileExtensionCalculator", () => {
 			map.children.push(...additionalChildren)
 			FileExtensionCalculator["OTHER_GROUP_THRESHOLD_VALUE"] = 95
 
-			const result: MetricDistribution[] = FileExtensionCalculator.getMetricDistribution(map, "rloc", [])
+			const result: MetricDistribution[] = FileExtensionCalculator.getMetricDistribution(map, "rloc")
 
 			expect(result).toEqual(expected)
 		})
