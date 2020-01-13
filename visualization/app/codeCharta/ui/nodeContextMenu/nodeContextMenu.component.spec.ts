@@ -2,12 +2,15 @@ import "./nodeContextMenu.module"
 
 import { IRootScopeService, IWindowService, ITimeoutService } from "angular"
 import { instantiateModule, getService } from "../../../../mocks/ng.mockhelper"
-import { SettingsService } from "../../state/settings.service"
 import { CodeMapHelper } from "../../util/codeMapHelper"
 import { CodeMapActionsService } from "../codeMap/codeMap.actions.service"
 import { NodeContextMenuController } from "./nodeContextMenu.component"
-import { TEST_DELTA_MAP_A, VALID_NODE_WITH_PATH } from "../../util/dataMocks"
+import { TEST_DELTA_MAP_A, VALID_NODE_WITH_PATH, withMockedEventMethods } from "../../util/dataMocks"
 import { CodeMapPreRenderService } from "../codeMap/codeMap.preRender.service"
+import { StoreService } from "../../state/store.service"
+import { setMarkedPackages } from "../../state/store/fileSettings/markedPackages/markedPackages.actions"
+import { BlacklistType, MarkedPackage } from "../../codeCharta.model"
+import { addBlacklistItem, setBlacklist } from "../../state/store/fileSettings/blacklist/blacklist.actions"
 
 describe("nodeContextMenuController", () => {
 	let element: Element
@@ -15,7 +18,7 @@ describe("nodeContextMenuController", () => {
 	let $timeout: ITimeoutService
 	let $window: IWindowService
 	let $rootScope: IRootScopeService
-	let settingsService: SettingsService
+	let storeService: StoreService
 	let codeMapActionsService: CodeMapActionsService
 	let codeMapPreRenderService: CodeMapPreRenderService
 
@@ -32,7 +35,7 @@ describe("nodeContextMenuController", () => {
 		$timeout = getService<ITimeoutService>("$timeout")
 		$window = getService<IWindowService>("$window")
 		$rootScope = getService<IRootScopeService>("$rootScope")
-		settingsService = getService<SettingsService>("settingsService")
+		storeService = getService<StoreService>("storeService")
 		codeMapActionsService = getService<CodeMapActionsService>("codeMapActionsService")
 		codeMapPreRenderService = getService<CodeMapPreRenderService>("codeMapPreRenderService")
 	}
@@ -67,32 +70,24 @@ describe("nodeContextMenuController", () => {
 			$timeout,
 			$window,
 			$rootScope,
+			storeService,
 			codeMapActionsService,
-			settingsService,
 			codeMapPreRenderService
 		)
 	}
 
-	function withMockedEventMethods() {
-		$rootScope.$on = nodeContextMenuController["$rootScope"].$on = jest.fn()
-		$rootScope.$broadcast = nodeContextMenuController["$rootScope"].$broadcast = jest.fn()
+	function withMockedSubscribeMethods() {
+		NodeContextMenuController.subscribeToShowNodeContextMenu = jest.fn()
+		NodeContextMenuController.subscribeToHideNodeContextMenu = jest.fn()
 	}
 
 	function withMockedCodeMapActionService() {
 		codeMapActionsService = nodeContextMenuController["codeMapActionsService"] = jest.fn<CodeMapActionsService>(() => {
 			return {
-				amountOfDependentEdges: jest.fn(),
-				amountOfVisibleDependentEdges: jest.fn(),
 				getParentMP: jest.fn(),
 				anyEdgeIsVisible: jest.fn(),
-				hideNode: jest.fn(),
 				markFolder: jest.fn(),
-				unmarkFolder: jest.fn(),
-				focusNode: jest.fn(),
-				showDependentEdges: jest.fn(),
-				hideDependentEdges: jest.fn(),
-				hideAllEdges: jest.fn(),
-				excludeNode: jest.fn()
+				unmarkFolder: jest.fn()
 			}
 		})()
 	}
@@ -100,8 +95,8 @@ describe("nodeContextMenuController", () => {
 	function withMockedCodeMapPreRenderService() {
 		codeMapPreRenderService = nodeContextMenuController["codeMapPreRenderService"] = jest.fn<CodeMapPreRenderService>(() => {
 			return {
-				getRenderFile: jest.fn(() => {
-					return TEST_DELTA_MAP_A
+				getRenderMap: jest.fn(() => {
+					return TEST_DELTA_MAP_A.map
 				})
 			}
 		})()
@@ -113,19 +108,22 @@ describe("nodeContextMenuController", () => {
 
 	describe("event related behavior", () => {
 		it("should subscribe to 'show-node-context-menu' events", () => {
-			withMockedEventMethods()
+			withMockedSubscribeMethods()
+			withMockedEventMethods($rootScope)
 			rebuildController()
-			expect($rootScope.$on).toHaveBeenCalledWith("show-node-context-menu", expect.any(Function))
+			expect(NodeContextMenuController.subscribeToShowNodeContextMenu).toHaveBeenCalledWith($rootScope, nodeContextMenuController)
 		})
 
 		it("should subscribe to 'hide-node-context-menu' events", () => {
-			withMockedEventMethods()
+			withMockedSubscribeMethods()
+			withMockedEventMethods($rootScope)
 			rebuildController()
-			expect($rootScope.$on).toHaveBeenCalledWith("hide-node-context-menu", expect.any(Function))
+			expect(NodeContextMenuController.subscribeToHideNodeContextMenu).toHaveBeenCalledWith($rootScope, nodeContextMenuController)
 		})
 
 		it("should broadcast 'show-node-context-menu' when 'show' method is called", () => {
-			withMockedEventMethods()
+			withMockedSubscribeMethods()
+			withMockedEventMethods($rootScope)
 			NodeContextMenuController.broadcastShowEvent($rootScope, "somepath", "sometype", 42, 24)
 			expect($rootScope.$broadcast).toHaveBeenCalledWith("show-node-context-menu", {
 				path: "somepath",
@@ -136,23 +134,10 @@ describe("nodeContextMenuController", () => {
 		})
 
 		it("should broadcast 'hide-node-context-menu' when 'hide' method is called", () => {
-			withMockedEventMethods()
+			withMockedSubscribeMethods()
+			withMockedEventMethods($rootScope)
 			NodeContextMenuController.broadcastHideEvent($rootScope)
 			expect($rootScope.$broadcast).toHaveBeenCalledWith("hide-node-context-menu")
-		})
-
-		it("should call 'showContextMenu' on 'show-node-context-menu' events", () => {
-			nodeContextMenuController.show = jest.fn()
-			NodeContextMenuController.broadcastShowEvent($rootScope, "somepath", "sometype", 42, 24)
-			$rootScope.$digest()
-			expect(nodeContextMenuController.show).toHaveBeenCalledWith("somepath", "sometype", 42, 24)
-		})
-
-		it("should call 'hideContextMenu' on 'hide-node-context-menu' events", () => {
-			nodeContextMenuController.hide = jest.fn()
-			NodeContextMenuController.broadcastHideEvent($rootScope)
-			$rootScope.$digest()
-			expect(nodeContextMenuController.hide).toHaveBeenCalled()
 		})
 	})
 
@@ -163,28 +148,16 @@ describe("nodeContextMenuController", () => {
 			nodeContextMenuController.setPosition = jest.fn()
 			nodeContextMenuController.calculatePosition = jest.fn().mockReturnValue({ x: 1, y: 2 })
 			CodeMapHelper.getCodeMapNodeFromPath = jest.fn().mockReturnValue(TEST_DELTA_MAP_A.map)
-			codeMapActionsService.amountOfDependentEdges = jest.fn().mockReturnValue({})
-			codeMapActionsService.amountOfVisibleDependentEdges = jest.fn().mockReturnValue({})
-			codeMapActionsService.isAnyEdgeVisible = jest.fn().mockReturnValue({})
 		})
 
 		it("should set the correct building after some timeout", () => {
 			const path = "/root"
 			const nodeType = "Folder"
 
-			nodeContextMenuController.show("/root", "Folder", 42, 24)
+			nodeContextMenuController.onShowNodeContextMenu("/root", "Folder", 42, 24)
 			$timeout.flush(100)
 			expect(nodeContextMenuController["_viewModel"].contextMenuBuilding).toEqual(TEST_DELTA_MAP_A.map)
 			expect(CodeMapHelper.getCodeMapNodeFromPath).toHaveBeenCalledWith(path, nodeType, TEST_DELTA_MAP_A.map)
-			expect(codeMapActionsService.amountOfDependentEdges).toHaveBeenCalledWith(
-				nodeContextMenuController["_viewModel"].contextMenuBuilding
-			)
-			expect(nodeContextMenuController["_viewModel"]["amountOfDependentEdges"]).toEqual({})
-			expect(codeMapActionsService.amountOfVisibleDependentEdges).toHaveBeenCalledWith(
-				nodeContextMenuController["_viewModel"].contextMenuBuilding
-			)
-			expect(nodeContextMenuController["_viewModel"]["amountOfVisibleDependentEdges"]).toEqual({})
-			expect(nodeContextMenuController["_viewModel"]["anyEdgeIsVisible"]).toEqual({})
 			expect(nodeContextMenuController.calculatePosition).toHaveBeenCalledWith(42, 24)
 			expect(nodeContextMenuController.setPosition).toHaveBeenCalledTimes(1)
 			expect(nodeContextMenuController.setPosition).toBeCalledWith(1, 2)
@@ -215,25 +188,35 @@ describe("nodeContextMenuController", () => {
 		})
 	})
 
-	describe("hideNode", () => {
-		it("should set _viewModel.contextMenuBuilding to null and call codeMapActionService.hideNode with null", () => {
-			codeMapActionsService.hideNode = jest.fn()
+	describe("flattenNode", () => {
+		it("should add flattened blacklistItem", () => {
+			nodeContextMenuController["_viewModel"].contextMenuBuilding = VALID_NODE_WITH_PATH.children[1]
+			const expected = {
+				path: "/root/Parent Leaf",
+				type: BlacklistType.flatten
+			}
+			storeService.dispatch(setBlacklist([]))
 
-			nodeContextMenuController.hideNode()
+			nodeContextMenuController.flattenNode()
 			$timeout.flush()
 
-			expect(codeMapActionsService.hideNode).toHaveBeenCalledWith(null)
+			expect(storeService.getState().fileSettings.blacklist).toContainEqual(expected)
 		})
 	})
 
 	describe("showNode", () => {
-		it("should set _viewModel.contextMenuBuilding to null and call codeMapActionService.showNode with null", () => {
-			codeMapActionsService.showNode = jest.fn()
+		it("should add flattened blacklistItem", () => {
+			nodeContextMenuController["_viewModel"].contextMenuBuilding = VALID_NODE_WITH_PATH.children[1]
+			const expected = {
+				path: "/root/Parent Leaf",
+				type: BlacklistType.flatten
+			}
+			storeService.dispatch(addBlacklistItem(expected))
 
 			nodeContextMenuController.showNode()
 			$timeout.flush()
 
-			expect(codeMapActionsService.showNode).toHaveBeenCalledWith(null)
+			expect(storeService.getState().fileSettings.blacklist).not.toContainEqual(expected)
 		})
 	})
 
@@ -289,32 +272,30 @@ describe("nodeContextMenuController", () => {
 		})
 
 		it("should return true, if package is marked and matches the color", () => {
-			const markedPackages = [{ path: "/root", color: "color" }]
-			settingsService.getSettings = jest.fn().mockReturnValue({ fileSettings: { markedPackages } })
+			const markedPackages: MarkedPackage[] = [{ path: "/root", color: "color", attributes: [] }]
+			storeService.dispatch(setMarkedPackages(markedPackages))
 
 			nodeContextMenuController["_viewModel"].contextMenuBuilding = VALID_NODE_WITH_PATH
 
 			const result = nodeContextMenuController.currentFolderIsMarkedWithColor("color")
 
 			expect(result).toBeTruthy()
-			expect(settingsService.getSettings).toHaveBeenCalled()
 		})
 
 		it("should return false, if package is not marked and doesn't match the color of parent folder", () => {
-			const markedPackages = [{ path: "/root", color: "color" }]
-			settingsService.getSettings = jest.fn().mockReturnValue({ fileSettings: { markedPackages } })
+			const markedPackages: MarkedPackage[] = [{ path: "/root", color: "color", attributes: [] }]
+			storeService.dispatch(setMarkedPackages(markedPackages))
 
 			nodeContextMenuController["_viewModel"].contextMenuBuilding = VALID_NODE_WITH_PATH
 
 			const result = nodeContextMenuController.currentFolderIsMarkedWithColor("another color")
 
 			expect(result).toBeFalsy()
-			expect(settingsService.getSettings).toHaveBeenCalled()
 		})
 
 		it("should return true, if package is marked and matches the color", () => {
-			const markedPackages = [{ path: "/another root", color: "color" }]
-			settingsService.getSettings = jest.fn().mockReturnValue({ fileSettings: { markedPackages } })
+			const markedPackages: MarkedPackage[] = [{ path: "/another root", color: "color", attributes: [] }]
+			storeService.dispatch(setMarkedPackages(markedPackages))
 			codeMapActionsService.getParentMP = jest.fn().mockReturnValue({ path: "/another root", color: "color" })
 
 			nodeContextMenuController["_viewModel"].contextMenuBuilding = VALID_NODE_WITH_PATH
@@ -322,22 +303,26 @@ describe("nodeContextMenuController", () => {
 			const result = nodeContextMenuController.currentFolderIsMarkedWithColor("color")
 
 			expect(result).toBeTruthy()
-			expect(codeMapActionsService.getParentMP).toHaveBeenCalledWith(
-				nodeContextMenuController["_viewModel"].contextMenuBuilding.path,
-				{ fileSettings: { markedPackages } }
-			)
-			expect(settingsService.getSettings).toHaveBeenCalled()
+			expect(codeMapActionsService.getParentMP).toHaveBeenCalledWith(nodeContextMenuController["_viewModel"].contextMenuBuilding.path)
 		})
 	})
 
 	describe("markFolder", () => {
-		it("should call hide and codeMapActionService.markFolder", () => {
-			nodeContextMenuController.hide = jest.fn()
+		beforeEach(() => {
 			codeMapActionsService.markFolder = jest.fn()
+		})
+
+		it("should hide contextMenu", () => {
+			nodeContextMenuController.onHideNodeContextMenu = jest.fn()
 
 			nodeContextMenuController.markFolder("color")
 
-			expect(nodeContextMenuController.hide).toHaveBeenCalled()
+			expect(nodeContextMenuController.onHideNodeContextMenu).toHaveBeenCalled()
+		})
+
+		it("should call hide and codeMapActionService.markFolder", () => {
+			nodeContextMenuController.markFolder("color")
+
 			expect(codeMapActionsService.markFolder).toHaveBeenCalledWith(
 				nodeContextMenuController["_viewModel"].contextMenuBuilding,
 				"color"
@@ -346,78 +331,64 @@ describe("nodeContextMenuController", () => {
 	})
 
 	describe("unmarkFolder", () => {
-		it("should call hide and codeMapActionService.unmarkFolder", () => {
-			nodeContextMenuController.hide = jest.fn()
+		beforeEach(() => {
 			codeMapActionsService.unmarkFolder = jest.fn()
+		})
+
+		it("should hide contextMenu", () => {
+			nodeContextMenuController.onHideNodeContextMenu = jest.fn()
 
 			nodeContextMenuController.unmarkFolder()
 
-			expect(nodeContextMenuController.hide).toHaveBeenCalled()
+			expect(nodeContextMenuController.onHideNodeContextMenu).toHaveBeenCalled()
+		})
+
+		it("should call hide and codeMapActionService.unmarkFolder", () => {
+			nodeContextMenuController.unmarkFolder()
+
 			expect(codeMapActionsService.unmarkFolder).toHaveBeenCalledWith(nodeContextMenuController["_viewModel"].contextMenuBuilding)
 		})
 	})
 
 	describe("focusNode", () => {
-		it("should call hide and codeMapActionService.focusNode", () => {
-			nodeContextMenuController.hide = jest.fn()
-			codeMapActionsService.focusNode = jest.fn()
+		beforeEach(() => {
+			nodeContextMenuController["_viewModel"].contextMenuBuilding = VALID_NODE_WITH_PATH.children[1]
+		})
+
+		it("should hide contextMenu", () => {
+			nodeContextMenuController.onHideNodeContextMenu = jest.fn()
 
 			nodeContextMenuController.focusNode()
 
-			expect(nodeContextMenuController.hide).toHaveBeenCalled()
-			expect(codeMapActionsService.focusNode).toHaveBeenCalledWith(nodeContextMenuController["_viewModel"].contextMenuBuilding)
+			expect(nodeContextMenuController.onHideNodeContextMenu).toHaveBeenCalled()
 		})
-	})
 
-	describe("showDependentEdges", () => {
-		it("should call hide and codeMapActionService.focusNode", () => {
-			nodeContextMenuController.hide = jest.fn()
-			codeMapActionsService.showDependentEdges = jest.fn()
+		it("should set new focused path", () => {
+			nodeContextMenuController.focusNode()
 
-			nodeContextMenuController.showDependentEdges()
-
-			expect(nodeContextMenuController.hide).toHaveBeenCalled()
-			expect(codeMapActionsService.showDependentEdges).toHaveBeenCalledWith(
-				nodeContextMenuController["_viewModel"].contextMenuBuilding
-			)
-		})
-	})
-
-	describe("hideDependentEdges", () => {
-		it("should call hide and codeMapActionService.hideDependentEdges", () => {
-			nodeContextMenuController.hide = jest.fn()
-			codeMapActionsService.hideDependentEdges = jest.fn()
-
-			nodeContextMenuController.hideDependentEdges()
-
-			expect(nodeContextMenuController.hide).toHaveBeenCalled()
-			expect(codeMapActionsService.hideDependentEdges).toHaveBeenCalledWith(
-				nodeContextMenuController["_viewModel"].contextMenuBuilding
-			)
-		})
-	})
-
-	describe("hideAllEdges", () => {
-		it("should call hide and codeMapActionService.hideAllEdges", () => {
-			nodeContextMenuController.hide = jest.fn()
-			codeMapActionsService.hideAllEdges = jest.fn()
-
-			nodeContextMenuController.hideAllEdges()
-
-			expect(nodeContextMenuController.hide).toHaveBeenCalled()
-			expect(codeMapActionsService.hideAllEdges).toHaveBeenCalled()
+			expect(storeService.getState().dynamicSettings.focusedNodePath).toEqual(VALID_NODE_WITH_PATH.children[1].path)
 		})
 	})
 
 	describe("excludeNode", () => {
-		it("should call hide and codeMapActionService.excludeNode", () => {
-			nodeContextMenuController.hide = jest.fn()
-			codeMapActionsService.excludeNode = jest.fn()
+		beforeEach(() => {
+			nodeContextMenuController["_viewModel"].contextMenuBuilding = VALID_NODE_WITH_PATH.children[1]
+		})
+
+		it("should hide contextMenu", () => {
+			nodeContextMenuController.onHideNodeContextMenu = jest.fn()
 
 			nodeContextMenuController.excludeNode()
 
-			expect(nodeContextMenuController.hide).toHaveBeenCalled()
-			expect(codeMapActionsService.excludeNode).toHaveBeenCalledWith(nodeContextMenuController["_viewModel"].contextMenuBuilding)
+			expect(nodeContextMenuController.onHideNodeContextMenu).toHaveBeenCalled()
+		})
+
+		it("should add exclude blacklistItem", () => {
+			const expected = { path: "/root/Parent Leaf", type: BlacklistType.exclude }
+
+			nodeContextMenuController.excludeNode()
+
+			expect(storeService.getState().fileSettings.blacklist).toContainEqual(expected)
 		})
 	})
 
@@ -464,7 +435,7 @@ describe("nodeContextMenuController", () => {
 	describe("hide", () => {
 		it("should set contextMenuBuilding to null after flush", () => {
 			nodeContextMenuController["_viewModel"].contextMenuBuilding = VALID_NODE_WITH_PATH
-			nodeContextMenuController.hide()
+			nodeContextMenuController.onHideNodeContextMenu()
 			$timeout.flush()
 
 			expect(nodeContextMenuController["_viewModel"].contextMenuBuilding).toBe(null)

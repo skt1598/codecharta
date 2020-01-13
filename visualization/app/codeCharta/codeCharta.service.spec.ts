@@ -1,12 +1,11 @@
 import "./codeCharta.module"
 
 import { CodeChartaService } from "./codeCharta.service"
-import { IRootScopeService } from "angular"
-import { SettingsService } from "./state/settings.service"
 import { getService, instantiateModule } from "../../mocks/ng.mockhelper"
 import { FileStateService } from "./state/fileState.service"
 import { TEST_FILE_CONTENT } from "./util/dataMocks"
-import { CCFile } from "./codeCharta.model"
+import { CCFile, BlacklistType } from "./codeCharta.model"
+import _ from "lodash"
 
 describe("codeChartaService", () => {
 	let codeChartaService: CodeChartaService
@@ -16,7 +15,7 @@ describe("codeChartaService", () => {
 	beforeEach(() => {
 		restartSystem()
 		rebuildService()
-		validFileContent = TEST_FILE_CONTENT
+		validFileContent = _.cloneDeep(TEST_FILE_CONTENT)
 	})
 
 	function restartSystem() {
@@ -34,21 +33,39 @@ describe("codeChartaService", () => {
 			map: {
 				attributes: {},
 				children: [
-					{ attributes: { Functions: 10, MCC: 1, RLOC: 100 }, link: "http://www.google.de", name: "big leaf", type: "File" },
+					{
+						attributes: { functions: 10, mcc: 1, rloc: 100 },
+						link: "http://www.google.de",
+						name: "big leaf",
+						path: "/root/big leaf",
+						type: "File"
+					},
 					{
 						attributes: {},
 						children: [
-							{ attributes: { Functions: 100, MCC: 100, RLOC: 30 }, name: "small leaf", type: "File" },
-							{ attributes: { Functions: 1000, MCC: 10, RLOC: 70 }, name: "other small leaf", type: "File" }
+							{
+								attributes: { functions: 100, mcc: 100, rloc: 30 },
+								name: "small leaf",
+								path: "/root/Parent Leaf/small leaf",
+								type: "File"
+							},
+							{
+								attributes: { functions: 1000, mcc: 10, rloc: 70 },
+								name: "other small leaf",
+								path: "/root/Parent Leaf/other small leaf",
+								type: "File"
+							}
 						],
 						name: "Parent Leaf",
+						path: "/root/Parent Leaf",
 						type: "Folder"
 					}
 				],
 				name: "root",
+				path: "/root",
 				type: "Folder"
 			},
-			settings: { fileSettings: { attributeTypes: {}, blacklist: [], edges: [], markedPackages: [] } }
+			settings: { fileSettings: { attributeTypes: { nodes: [], edges: [] }, blacklist: [], edges: [], markedPackages: [] } }
 		}
 
 		beforeEach(() => {
@@ -113,6 +130,17 @@ describe("codeChartaService", () => {
 					expect(err).toEqual([{ dataPath: "empty or invalid file", message: "file is empty or invalid" }])
 					done()
 				})
+		})
+
+		it("should convert old blacklist type", done => {
+			validFileContent.blacklist = [{ path: "foo", type: "hide" }]
+
+			codeChartaService.loadFiles([{ fileName: validFileContent.fileName, content: validFileContent }]).then(() => {
+				const expectedWithBlacklist = _.cloneDeep(expected)
+				expectedWithBlacklist.settings.fileSettings.blacklist = [{ path: "foo", type: BlacklistType.flatten }]
+				expect(fileStateService.addFile).toHaveBeenLastCalledWith(expectedWithBlacklist)
+				done()
+			})
 		})
 	})
 })

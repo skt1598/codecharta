@@ -1,4 +1,5 @@
 #!/usr/bin/env node
 
-const shell = require('shelljs');
-shell.exec(`npm run --prefix ${__dirname} start`);
+const shell = require("shelljs")
+const sanitized_dir = __dirname.replace('"', "")
+shell.exec(`npm run --prefix "${sanitized_dir}" start`)

@@ -1,4 +1,5 @@
 import { Vector3 } from "three"
+import { Action } from "redux"
 
 export interface NameDataPair {
 	fileName: string
@@ -18,6 +19,23 @@ export enum FileSelectionState {
 	None = "None"
 }
 
+export enum SearchPanelMode {
+	treeView = "treeView",
+	flatten = "flatten",
+	exclude = "exclude",
+	minimized = "minimized"
+}
+
+export interface ExportCCFile {
+	projectName: string
+	apiVersion: string
+	nodes: CodeMapNode[]
+	attributeTypes: AttributeTypes | {}
+	edges: Edge[]
+	markedPackages: MarkedPackage[]
+	blacklist: BlacklistItem[]
+}
+
 export interface CCFile {
 	map: CodeMapNode
 	settings: {
@@ -31,8 +49,10 @@ export interface CodeMapNode {
 	type: string
 	children?: CodeMapNode[]
 	attributes: KeyValuePair
+	edgeAttributes?: {
+		[key: string]: EdgeMetricCount
+	}
 	link?: string
-	origin?: string
 	path?: string
 	visible?: boolean
 	deltas?: {
@@ -64,26 +84,32 @@ export interface DynamicSettings {
 	areaMetric: string
 	heightMetric: string
 	colorMetric: string
+	distributionMetric: string
+	edgeMetric: string
 	focusedNodePath: string
 	searchedNodePaths: Array<string>
 	searchPattern: string
 	margin: number
-	neutralColorRange: ColorRange
+	colorRange: ColorRange
 }
 
 export interface AppSettings {
 	amountOfTopLabels: number
+	amountOfEdgePreviews: number
+	edgeHeight: number
 	scaling: Vector3
 	camera: Vector3
-	deltaColorFlipped: boolean
-	enableEdgeArrows: boolean
 	hideFlatBuildings: boolean
-	maximizeDetailPanel: boolean
+	invertColorRange: boolean
+	invertDeltaColors: boolean
 	invertHeight: boolean
 	dynamicMargin: boolean
 	isWhiteBackground: boolean
 	mapColors: MapColors
 	whiteColorBuildings: boolean
+	isPresentationMode: boolean
+	showOnlyBuildingsWithEdges: boolean
+	resetCameraIfNewFileIsLoaded: boolean
 }
 
 export interface TreeMapSettings {
@@ -103,33 +129,46 @@ export interface MapColors {
 	lightGrey: string
 	angularGreen: string
 	markingColors: string[]
+	outgoingEdge: string
+	incomingEdge: string
 }
 
 export interface ColorRange {
 	from: number
 	to: number
-	flipped: boolean
 }
 
 export interface AttributeTypes {
-	nodes?: {
-		[key: string]: AttributeType
-	}
-	edges?: {
-		[key: string]: AttributeType
-	}
+	nodes: AttributeType[]
+	edges: AttributeType[]
 }
 
-export enum AttributeType {
-	absolute,
-	relative
+export interface AttributeType {
+	[key: string]: AttributeTypeValue
+}
+
+export enum AttributeTypeValue {
+	absolute = "absolute",
+	relative = "relative"
 }
 
 export interface Edge {
 	fromNodeName: string
 	toNodeName: string
 	attributes: KeyValuePair
-	visible?: boolean
+	visible?: EdgeVisibility
+}
+
+export enum EdgeVisibility {
+	none = "none",
+	from = "from",
+	to = "to",
+	both = "both"
+}
+
+export interface EdgeMetricCount {
+	incoming: number
+	outgoing: number
 }
 
 export interface BlacklistItem {
@@ -138,7 +177,7 @@ export interface BlacklistItem {
 }
 
 export enum BlacklistType {
-	hide = "hide",
+	flatten = "flatten",
 	exclude = "exclude"
 }
 
@@ -184,13 +223,27 @@ export interface Node {
 	isLeaf: boolean
 	deltas: KeyValuePair
 	attributes: KeyValuePair
-	children: Node[]
-	parent: Node
+	edgeAttributes: {
+		[key: string]: EdgeMetricCount
+	}
 	heightDelta: number
 	visible: boolean
 	path: string
-	origin: string
 	link: string
 	markingColor: string
 	flat: boolean
+	color: string
+	incomingEdgePoint: Vector3
+	outgoingEdgePoint: Vector3
+}
+
+export interface State {
+	fileSettings: FileSettings
+	dynamicSettings: DynamicSettings
+	appSettings: AppSettings
+	treeMap: TreeMapSettings
+}
+
+export interface CCAction extends Action {
+	payload: any
 }

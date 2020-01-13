@@ -1,5 +1,6 @@
 import { CodeMapNode, CCFile } from "../codeCharta.model"
 import { CodeChartaService } from "../codeCharta.service"
+import { FileNameHelper } from "./fileNameHelper"
 
 export class AggregationGenerator {
 	private static projectNameArray: string[] = []
@@ -13,8 +14,8 @@ export class AggregationGenerator {
 		this.resetVariables()
 
 		for (let inputFile of inputFiles) {
-			this.projectNameArray.push(inputFile.fileMeta.projectName)
-			this.fileNameArray.push(inputFile.fileMeta.fileName)
+			this.projectNameArray.push(inputFile.fileMeta.projectName.replace(" ", "_"))
+			this.fileNameArray.push(FileNameHelper.withoutCCJsonExtension(inputFile.fileMeta.fileName).replace(" ", "_"))
 		}
 		return this.getNewAggregatedMap(inputFiles)
 	}
@@ -22,16 +23,15 @@ export class AggregationGenerator {
 	private static getNewAggregatedMap(inputFiles: CCFile[]): CCFile {
 		let outputFile: CCFile = {
 			fileMeta: {
-				projectName: "Aggregation of following projects: " + this.projectNameArray.join(", "),
-				fileName: "Aggregation of following files: " + this.fileNameArray.join(", "),
+				projectName: "project_aggregation_of_" + this.projectNameArray.join("_and_"),
+				fileName: "file_aggregation_of_" + this.fileNameArray.join("_and_"),
 				apiVersion: require("../../../package.json").codecharta.apiVersion
 			},
 			map: {
 				name: CodeChartaService.ROOT_NAME,
 				type: "Folder",
-				children: [] as CodeMapNode[],
+				children: [],
 				attributes: {},
-				origin: "Aggregation of following files: " + this.fileNameArray.join(", "),
 				path: CodeChartaService.ROOT_PATH,
 				visible: true
 			},
@@ -39,7 +39,7 @@ export class AggregationGenerator {
 				fileSettings: {
 					edges: [],
 					blacklist: [],
-					attributeTypes: {},
+					attributeTypes: { nodes: [], edges: [] },
 					markedPackages: []
 				}
 			}
@@ -49,6 +49,7 @@ export class AggregationGenerator {
 			outputFile.map.children.push(this.extractNodeFromMap(inputMap))
 		}
 		this.aggregateRootAttributes(outputFile)
+
 		return outputFile
 	}
 

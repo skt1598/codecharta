@@ -2,11 +2,14 @@ package de.maibornwolff.codecharta.importer.scmlogparser.input.metrics
 
 import de.maibornwolff.codecharta.importer.scmlogparser.input.Commit
 import de.maibornwolff.codecharta.importer.scmlogparser.input.Modification
+import de.maibornwolff.codecharta.model.Edge
 
 class HighlyCoupledFiles: Metric {
 
-    private val simultaneouslyCommitedFiles = mutableMapOf<String, Long>()
+    private var fileName: String = ""
     private var numberOfCommits: Long = 0
+    private var commits = mutableListOf<Commit>()
+    private val simultaneouslyCommittedFiles = mutableMapOf<String, Int>()
 
     override fun description(): String {
         return "Highly Coupled Files: Number of highly coupled files (35% times modified the same time) with this file."
@@ -16,28 +19,53 @@ class HighlyCoupledFiles: Metric {
         return "highly_coupled_files"
     }
 
+    override fun edgeMetricName(): String {
+        return "temporal_coupling"
+    }
+
     override fun value(): Number {
-        return simultaneouslyCommitedFiles.values
-                .filter { this.isHighlyCoupled(it) }
+        evaluateIfNecessary()
+
+        return simultaneouslyCommittedFiles.values
+                .filter { isHighlyCoupled(it) }
                 .count()
                 .toLong()
     }
 
-    private fun isHighlyCoupled(`val`: Long): Boolean {
-        return if (numberOfCommits >= MIN_NO_COMMITS_FOR_HIGH_COUPLING) {
-            `val`.toDouble() / numberOfCommits.toDouble() > HIGH_COUPLING_VALUE
+    override fun getEdges(): List<Edge> {
+        evaluateIfNecessary()
+
+        return simultaneouslyCommittedFiles
+                .filter { isHighlyCoupled(it.value) }
+                .map { (coupledFile, value) ->
+                    Edge(fileName, coupledFile, mapOf(edgeMetricName() to value.toDouble() / numberOfCommits.toDouble()))
+                }
+    }
+
+    private fun evaluateIfNecessary() {
+        if (simultaneouslyCommittedFiles.isNotEmpty()) return
+
+        commits.forEach { commit ->
+            commit.modifications
+                    .filter { it.filename != fileName }
+                    .forEach { simultaneouslyCommittedFiles.merge(it.filename, 1) { x, y -> x + y } }
+        }
+
+    }
+
+    private fun isHighlyCoupled(value: Int): Boolean {
+        return if (value >= MIN_NO_COMMITS_FOR_HIGH_COUPLING) {
+            value.toDouble() / numberOfCommits.toDouble() > HIGH_COUPLING_VALUE
         } else false
     }
 
     override fun registerCommit(commit: Commit) {
         numberOfCommits++
-        commit.modifications
-                .forEach { simultaneouslyCommitedFiles.merge(it.filename, 1L) { x, y -> x + y } }
+        commits.add(commit)
     }
 
     override fun registerModification(modification: Modification) {
-        // delete this file
-        simultaneouslyCommitedFiles.remove(modification.filename)
+        fileName = modification.filename
     }
 
     companion object {

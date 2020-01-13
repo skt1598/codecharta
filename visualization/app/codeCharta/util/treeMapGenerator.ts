@@ -1,8 +1,8 @@
 import * as d3 from "d3"
-import { hierarchy, HierarchyNode } from "d3"
+import { hierarchy, HierarchyNode, TreemapLayout } from "d3"
 import { TreeMapHelper } from "./treeMapHelper"
 import { CodeMapHelper } from "./codeMapHelper"
-import { CodeMapNode, BlacklistType, CCFile, Settings, MetricData, Node } from "../codeCharta.model"
+import { CodeMapNode, BlacklistType, MetricData, Node, State } from "../codeCharta.model"
 
 export interface SquarifiedValuedCodeMapNode {
 	data: CodeMapNode
@@ -16,103 +16,56 @@ export interface SquarifiedValuedCodeMapNode {
 }
 
 export class TreeMapGenerator {
-	private static HEIGHT_DIVISOR = 1
-	private static FOLDER_HEIGHT = 2
-	private static MIN_BUILDING_HEIGHT = 2
-	private static HEIGHT_VALUE_WHEN_METRIC_NOT_FOUND = 0
 	private static PADDING_SCALING_FACTOR = 0.4
+	private static HEIGHT_DIVISOR = 1
 
-	public static createTreemapNodes(renderFile: CCFile, s: Settings, metricData: MetricData[]): Node {
-		const squaredNode: SquarifiedValuedCodeMapNode = this.squarify(renderFile, s)
-		return this.addMapScaledHeightDimensionAndFinalizeFromRoot(squaredNode, s, metricData)
+	public static createTreemapNodes(map: CodeMapNode, s: State, metricData: MetricData[], isDeltaState: boolean): Node[] {
+		const squarifiedTreeMap: SquarifiedValuedCodeMapNode = this.getSquarifiedTreeMap(map, s)
+		const maxHeight = metricData.find(x => x.name == s.dynamicSettings.heightMetric).maxValue
+		const heightScale = (s.treeMap.mapSize * 2) / TreeMapGenerator.HEIGHT_DIVISOR / maxHeight
+		const nodesAsArray: SquarifiedValuedCodeMapNode[] = this.getNodesAsArray(squarifiedTreeMap)
+		return nodesAsArray.map(squarifiedNode => {
+			return TreeMapHelper.buildNodeFrom(squarifiedNode, heightScale, maxHeight, s, isDeltaState)
+		})
+	}
+
+	private static getSquarifiedTreeMap(map: CodeMapNode, s: State): SquarifiedValuedCodeMapNode {
+		let hierarchy: HierarchyNode<CodeMapNode> = d3.hierarchy<CodeMapNode>(map)
+		const nodeLeafs: CodeMapNode[] = hierarchy.descendants().map(d => d.data)
+		const blacklisted: number = CodeMapHelper.numberOfBlacklistedNodes(nodeLeafs, s.fileSettings.blacklist)
+		const nodesPerSide: number = 2 * Math.sqrt(hierarchy.descendants().length - blacklisted)
+		const mapLength: number = s.treeMap.mapSize * 2 + nodesPerSide * s.dynamicSettings.margin
+		const padding: number = s.dynamicSettings.margin * TreeMapGenerator.PADDING_SCALING_FACTOR
+		let treeMap: TreemapLayout<CodeMapNode> = d3
+			.treemap<CodeMapNode>()
+			.size([mapLength, mapLength])
+			.paddingOuter(padding)
+			.paddingInner(padding)
+
+		return treeMap(hierarchy.sum(node => this.calculateValue(node, s))) as SquarifiedValuedCodeMapNode
+	}
+
+	private static getNodesAsArray(node: SquarifiedValuedCodeMapNode): SquarifiedValuedCodeMapNode[] {
+		let nodes = [node]
+		if (node.children) {
+			node.children.forEach(child => nodes.push(...this.getNodesAsArray(child)))
+		}
+		return nodes
 	}
 
 	public static setVisibilityOfNodeAndDescendants(node: CodeMapNode, visibility: boolean) {
 		node.visible = visibility
 		hierarchy<CodeMapNode>(node)
 			.descendants()
-			.forEach(hierarchyNode => {
-				hierarchyNode.data.visible = visibility
-			})
+			.forEach(hierarchyNode => (hierarchyNode.data.visible = visibility))
 		return node
 	}
 
-	private static squarify(renderFile: CCFile, s: Settings): SquarifiedValuedCodeMapNode {
-		let map: HierarchyNode<CodeMapNode> = d3.hierarchy<CodeMapNode>(renderFile.map)
-		const blacklisted = CodeMapHelper.numberOfBlacklistedNodes(map.descendants().map(d => d.data), s.fileSettings.blacklist)
-		let nodesPerSide = 2 * Math.sqrt(map.descendants().length - blacklisted)
-		let treeMap = d3
-			.treemap<CodeMapNode>()
-			.size([
-				s.treeMapSettings.mapSize + nodesPerSide * s.dynamicSettings.margin,
-				s.treeMapSettings.mapSize + nodesPerSide * s.dynamicSettings.margin
-			])
-			.paddingOuter(s.dynamicSettings.margin * TreeMapGenerator.PADDING_SCALING_FACTOR || 1)
-			.paddingInner(s.dynamicSettings.margin * TreeMapGenerator.PADDING_SCALING_FACTOR || 1)
-
-		return treeMap(map.sum(node => this.calculateValue(node, s))) as SquarifiedValuedCodeMapNode
-	}
-
-	private static addMapScaledHeightDimensionAndFinalizeFromRoot(
-		squaredNode: SquarifiedValuedCodeMapNode,
-		s: Settings,
-		metricData: MetricData[]
-	): Node {
-		const maxHeight = metricData.find(x => x.name == s.dynamicSettings.heightMetric).maxValue
-		const heightScale = s.treeMapSettings.mapSize / TreeMapGenerator.HEIGHT_DIVISOR / maxHeight
-		return this.addHeightDimensionAndFinalize(squaredNode, s, heightScale, maxHeight)
-	}
-
-	private static addHeightDimensionAndFinalize(
-		squaredNode: SquarifiedValuedCodeMapNode,
-		s: Settings,
-		heightScale: number,
-		maxHeight: number,
-		depth = 0,
-		parent: Node = null
-	): Node {
-		let attr = squaredNode.data.attributes || {}
-		let heightValue = attr[s.dynamicSettings.heightMetric]
-
-		if (heightValue === undefined || heightValue === null) {
-			heightValue = TreeMapGenerator.HEIGHT_VALUE_WHEN_METRIC_NOT_FOUND
-		}
-
-		if (CodeMapHelper.isBlacklisted(squaredNode.data, s.fileSettings.blacklist, BlacklistType.hide)) {
-			squaredNode.data = this.setVisibilityOfNodeAndDescendants(squaredNode.data, false)
-		}
-
-		const finalNode = TreeMapHelper.buildNodeFrom(
-			squaredNode,
-			heightScale,
-			heightValue,
-			maxHeight,
-			depth,
-			parent,
-			s,
-			TreeMapGenerator.MIN_BUILDING_HEIGHT,
-			TreeMapGenerator.FOLDER_HEIGHT
-		)
-
-		if (squaredNode.children && squaredNode.children.length > 0) {
-			const finalChildren: Node[] = []
-			for (let i = 0; i < squaredNode.children.length; i++) {
-				finalChildren.push(
-					this.addHeightDimensionAndFinalize(squaredNode.children[i], s, heightScale, maxHeight, depth + 1, finalNode)
-				)
-			}
-			finalNode.children = finalChildren
-		}
-		return finalNode
-	}
-
-	private static isOnlyVisibleInComparisonMap(node: CodeMapNode, s: Settings): boolean {
+	private static isOnlyVisibleInComparisonMap(node: CodeMapNode, s: State): boolean {
 		return node && node.deltas && node.deltas[s.dynamicSettings.heightMetric] < 0 && node.attributes[s.dynamicSettings.areaMetric] === 0
 	}
 
-	private static calculateValue(node: CodeMapNode, s: Settings): number {
-		let result = 0
-
+	private static calculateValue(node: CodeMapNode, s: State): number {
 		if (CodeMapHelper.isBlacklisted(node, s.fileSettings.blacklist, BlacklistType.exclude)) {
 			return 0
 		}
@@ -121,30 +74,13 @@ export class TreeMapGenerator {
 			return Math.abs(node.deltas[s.dynamicSettings.areaMetric])
 		}
 
-		if (!node.children || node.children.length === 0) {
-			if (node.attributes && node.attributes[s.dynamicSettings.areaMetric]) {
-				result = node.attributes[s.dynamicSettings.areaMetric] || 0
-			} else {
-				result = this.getEdgeValue(node, s)
-			}
+		if (this.isNodeLeaf(node) && node.attributes && node.attributes[s.dynamicSettings.areaMetric]) {
+			return node.attributes[s.dynamicSettings.areaMetric]
 		}
-		return result
+		return 0
 	}
 
-	private static getEdgeValue(node: CodeMapNode, s: Settings) {
-		let filteredEdgeAttributes: number[] = []
-
-		if (s.fileSettings.edges) {
-			s.fileSettings.edges.forEach(edge => {
-				if (edge.fromNodeName == node.path || edge.toNodeName == node.path) {
-					filteredEdgeAttributes.push(edge.attributes[s.dynamicSettings.areaMetric])
-				}
-			})
-		}
-
-		if (filteredEdgeAttributes) {
-			return filteredEdgeAttributes.sort().reverse()[0]
-		}
-		return 1
+	private static isNodeLeaf(node: CodeMapNode) {
+		return !node.children || node.children.length === 0
 	}
 }

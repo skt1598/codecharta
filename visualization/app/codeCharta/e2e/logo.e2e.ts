@@ -1,20 +1,27 @@
-import { CC_URL, puppeteer } from "../../puppeteer.helper"
+import { goto, launch, newPage } from "../../puppeteer.helper"
 import { LogoPageObject } from "./logo.po"
+import { Browser, Page } from "puppeteer"
 
-jest.setTimeout(10000)
+jest.setTimeout(20000)
 
 describe("CodeCharta logo", () => {
-	let browser, page, logo
+	let browser: Browser
+	let page: Page
+	let logo: LogoPageObject
 
 	beforeAll(async () => {
-		browser = await puppeteer.launch()
-		page = await browser.newPage()
-		await page.goto(CC_URL)
-		logo = new LogoPageObject(page)
+		browser = await launch()
 	})
 
 	afterAll(async () => {
 		await browser.close()
+	})
+
+	beforeEach(async () => {
+		page = await newPage(browser)
+		logo = new LogoPageObject(page)
+
+		await goto(page)
 	})
 
 	it("should have correct version", async () => {

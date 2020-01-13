@@ -1,0 +1,18 @@
+positional parameter at index 0..* (FILE) should be specified only once
+Usage: [1mccsh modify[21m[0m [[33m-h[39m[0m] [[33m-f[39m[0m=[3m<moveFrom>[23m[0m] [[33m-n[39m[0m=[3m<projectName>[23m[0m] [[33m-o[39m[0m=[3m<outputFile>[23m[0m]
+                   [[33m-p[39m[0m=[3m<printLevels>[23m[0m] [[33m-s[39m[0m=[3m<setRoot>[23m[0m] [[33m-t[39m[0m=[3m<moveTo>[23m[0m]
+                   [[33m-r[39m[0m=[3m<remove>[23m[0m...]... [[33mFILE[39m[0m]
+changes the structure of cc.json files
+      [[33mFILE[39m[0m]                 input project file
+  [33m-f[39m[0m, [33m--moveFrom[39m[0m=[3m<moveFrom>[23m[0m  move nodes in project folder...
+  [33m-h[39m[0m, [33m--help[39m[0m                 displays this help and exits
+  [33m-n[39m[0m, [33m--projectName[39m[0m=[3m<project[23m[0m[3mName>[23m[0m
+                             project name of new file
+  [33m-o[39m[0m, [33m--outputFile[39m[0m=[3m<outputFi[23m[0m[3mle>[23m[0m
+                             output File (or empty for stdout)
+  [33m-p[39m[0m, [33m--printLevels[39m[0m=[3m<printLe[23m[0m[3mvels>[23m[0m
+                             show first x layers of project hierarchy
+  [33m-r[39m[0m, [33m--remove[39m[0m=[3m<remove>[23m[0m...   node(s) to be removed
+  [33m-s[39m[0m, [33m--setRoot[39m[0m=[3m<setRoot>[23m[0m    path within project to be extracted
+  [33m-t[39m[0m, [33m--moveTo[39m[0m=[3m<moveTo>[23m[0m      ... move nodes to destination folder
+Copyright(c) 2019, MaibornWolff GmbH

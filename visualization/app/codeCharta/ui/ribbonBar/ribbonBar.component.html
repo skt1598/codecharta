@@ -1,71 +1,77 @@
-<md-card id="header" class="dark_shadow_opacity">
+<search-panel-component></search-panel-component>
 
-    <div class="section">
-        <div class="section-header">
-            <revision-chooser-file-drop-down-component></revision-chooser-file-drop-down-component>
-        </div>
-        <span class="section-title" id="section-title" ng-click="$ctrl.toggle()">
-            <span ng-if="!$ctrl._viewModel.isDeltaState">File</span>
-            <span ng-if="$ctrl._viewModel.isDeltaState" class="first">File</span>
-            <span ng-if="$ctrl._viewModel.isDeltaState" class="second">Compare</span>
-        </span>
-        <div class="section-body">
-            <revision-chooser-component></revision-chooser-component>
-            <scenario-drop-down-component></scenario-drop-down-component>
-        </div>
-    </div>
-
-    <div class="section">
-        <div class="section-header">
-            <area-metric-chooser-component></area-metric-chooser-component>
-        </div>
-        <span class="section-title" ng-click="$ctrl.toggle()">Size</span>
-        <div class="section-body">
-            <area-settings-panel-component></area-settings-panel-component>
-        </div>
-    </div>
-
-    <div class="section">
-        <div class="section-header">
-            <height-metric-chooser-component></height-metric-chooser-component>
-        </div>
-        <span class="section-title" ng-click="$ctrl.toggle()">Height</span>
-        <div class="section-body">
-            <height-settings-panel-component></height-settings-panel-component>
-        </div>
-    </div>
-
-    <div class="section">
-        <div class="section-header">
-            <color-metric-chooser-component></color-metric-chooser-component>
-        </div>
-        <span class="section-title" ng-click="$ctrl.toggle()">Color</span>
-        <div class="section-body">
-            <color-settings-panel-component></color-settings-panel-component>
-        </div>
-    </div>
-
-    <div class="section">
-        <node-spike-component></node-spike-component>
-    </div>
-
-    <div class="section loading-gif">
-        <div class="section-header">
-            <loading-gif-map-component></loading-gif-map-component>
-        </div>
-    </div>
-
-    <div class="file-chooser-btn">
-        <file-chooser-directive></file-chooser-directive>
-    </div>
-
-    <div class="save-btn">
-        <md-button class="md-fab md-primary dark_shadow_opacity" ng-click="$ctrl.downloadFile()">
-            <i class="fa fa-download"></i>
-        </md-button>
-    </div>
+<md-card ng-attr-id="scenario-card">
+	<div class="section">
+		<div class="section-header">
+			<scenario-drop-down-component></scenario-drop-down-component>
+		</div>
+		<span class="section-title no-hover">Scenario</span>
+	</div>
 </md-card>
 
-<md-button id="toggle-ribbon-bar-fab" class="md-fab md-primary" aria-label="Toggle Ribbon Bar" ng-click="$ctrl.toggle()" ng-mouseover="$ctrl.hoverToggle()" ng-mouseleave="$ctrl.unhoverToggle()">
-    <i class="fa fa-angle-down"></i>
-</md-button>
+<md-card ng-attr-id="area-metric-card">
+	<div class="section">
+		<div class="section-header">
+			<area-metric-chooser-component></area-metric-chooser-component>
+		</div>
+		<span class="section-title" ng-click="$ctrl.toggle($event)">Size <i class="fa fa-angle-down"></i></span>
+		<div class="section-body">
+			<area-settings-panel-component></area-settings-panel-component>
+		</div>
+	</div>
+</md-card>
+
+<md-card ng-attr-id="height-metric-card">
+	<div class="section">
+		<div class="section-header">
+			<height-metric-chooser-component></height-metric-chooser-component>
+		</div>
+		<span class="section-title" ng-click="$ctrl.toggle($event)">Height <i class="fa fa-angle-down"></i></span>
+		<div class="section-body">
+			<height-settings-panel-component></height-settings-panel-component>
+		</div>
+	</div>
+</md-card>
+
+<md-card ng-attr-id="color-metric-card">
+	<div class="section">
+		<div class="section-header">
+			<color-metric-chooser-component></color-metric-chooser-component>
+		</div>
+		<span class="section-title" ng-click="$ctrl.toggle($event)">Color <i class="fa fa-angle-down"></i></span>
+		<div class="section-body">
+			<color-settings-panel-component></color-settings-panel-component>
+		</div>
+	</div>
+</md-card>
+
+<div class="section">
+	<node-spike-component></node-spike-component>
+</div>
+
+<div class="section loading-gif">
+	<div class="section-header">
+		<loading-gif-map-component></loading-gif-map-component>
+	</div>
+</div>
+
+<div class="file-chooser-btn">
+	<file-chooser-directive></file-chooser-directive>
+</div>
+<md-card ng-attr-id="edge-metric-card">
+	<div class="section">
+		<div class="section-header">
+			<edge-chooser-component></edge-chooser-component>
+		</div>
+		<span class="section-title" ng-click="$ctrl.toggle($event)"> Edges <i class="fa fa-angle-down"></i> </span>
+		<div class="section-body">
+			<edge-settings-panel-component></edge-settings-panel-component>
+		</div>
+	</div>
+</md-card>
+
+<md-card>
+	<div class="section">
+		<div class="section-header space"></div>
+	</div>
+</md-card>

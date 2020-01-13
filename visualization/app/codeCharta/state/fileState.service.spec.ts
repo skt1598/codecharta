@@ -3,13 +3,13 @@ import { FileStateService } from "./fileState.service"
 import { getService, instantiateModule } from "../../../mocks/ng.mockhelper"
 import { IRootScopeService } from "angular"
 import { CCFile, FileSelectionState } from "../codeCharta.model"
-import { TEST_DELTA_MAP_A, TEST_DELTA_MAP_B } from "../util/dataMocks"
-import { LoadingGifService } from "../ui/loadingGif/loadingGif.service"
+import { TEST_DELTA_MAP_A, TEST_DELTA_MAP_B, withMockedEventMethods } from "../util/dataMocks"
+import { LoadingStatusService } from "./loadingStatus.service"
 
 describe("FileStateService", () => {
 	let fileStateService: FileStateService
 	let $rootScope: IRootScopeService
-	let loadingGifService: LoadingGifService
+	let loadingStatusService: LoadingStatusService
 
 	let file1: CCFile
 	let file2: CCFile
@@ -19,15 +19,15 @@ describe("FileStateService", () => {
 	beforeEach(() => {
 		restartSystem()
 		rebuildService()
-		withMockedEventMethods()
-		withMockedLoadingGifService()
+		withMockedEventMethods($rootScope)
+		withMockedLoadingStatusService()
 	})
 
 	function restartSystem() {
 		instantiateModule("app.codeCharta.state")
 
 		$rootScope = getService<IRootScopeService>("$rootScope")
-		loadingGifService = getService<LoadingGifService>("loadingGifService")
+		loadingStatusService = getService<LoadingStatusService>("loadingStatusService")
 
 		file1 = JSON.parse(JSON.stringify(TEST_DELTA_MAP_A))
 		file2 = JSON.parse(JSON.stringify(TEST_DELTA_MAP_B))
@@ -36,16 +36,11 @@ describe("FileStateService", () => {
 	}
 
 	function rebuildService() {
-		fileStateService = new FileStateService($rootScope, loadingGifService)
+		fileStateService = new FileStateService($rootScope, loadingStatusService)
 	}
 
-	function withMockedEventMethods() {
-		$rootScope.$broadcast = fileStateService["$rootScope"].$broadcast = jest.fn()
-		$rootScope.$on = fileStateService["$rootScope"].$on = jest.fn()
-	}
-
-	function withMockedLoadingGifService() {
-		loadingGifService = fileStateService["loadingGifService"] = jest.fn().mockReturnValue({
+	function withMockedLoadingStatusService() {
+		loadingStatusService = fileStateService["loadingStatusService"] = jest.fn().mockReturnValue({
 			updateLoadingMapFlag: jest.fn()
 		})()
 	}
@@ -76,7 +71,6 @@ describe("FileStateService", () => {
 
 			expect(result).toEqual([{ file: file1, selectedAs: FileSelectionState.None }])
 			expect(result.length).toBe(1)
-			expect(fileStateService["$rootScope"].$broadcast).toBeCalledWith(FileStateService["IMPORTED_FILES_CHANGED_EVENT"], result)
 		})
 	})
 
@@ -140,13 +134,13 @@ describe("FileStateService", () => {
 		it("should broadcast a FILE_STATE_CHANGED_EVENT", () => {
 			fileStateService.setSingle(file1)
 
-			expect($rootScope.$broadcast).toHaveBeenCalledWith("file-selection-states-changed", fileStateService.getFileStates())
+			expect($rootScope.$broadcast).toHaveBeenCalledWith("file-states-changed", fileStateService.getFileStates())
 		})
 
 		it("should call updateLoadingMapFlag", () => {
 			fileStateService.setSingle(file1)
 
-			expect(loadingGifService.updateLoadingMapFlag).toHaveBeenCalledWith(true)
+			expect(loadingStatusService.updateLoadingMapFlag).toHaveBeenCalledWith(true)
 		})
 	})
 
@@ -188,7 +182,7 @@ describe("FileStateService", () => {
 		it("should broadcast a FILE_STATE_CHANGED_EVENT", () => {
 			fileStateService.setDelta(file1, file2)
 
-			expect($rootScope.$broadcast).toHaveBeenCalledWith("file-selection-states-changed", fileStateService.getFileStates())
+			expect($rootScope.$broadcast).toHaveBeenCalledWith("file-states-changed", fileStateService.getFileStates())
 		})
 	})
 
@@ -220,7 +214,7 @@ describe("FileStateService", () => {
 		it("should broadcast a FILE_STATE_CHANGED_EVENT", () => {
 			fileStateService.setMultiple([file1, file2])
 
-			expect($rootScope.$broadcast).toHaveBeenCalledWith("file-selection-states-changed", fileStateService.getFileStates())
+			expect($rootScope.$broadcast).toHaveBeenCalledWith("file-states-changed", fileStateService.getFileStates())
 		})
 	})
 
@@ -228,7 +222,7 @@ describe("FileStateService", () => {
 		it("should setup two event listeners", () => {
 			FileStateService.subscribe($rootScope, undefined)
 
-			expect($rootScope.$on).toHaveBeenCalledTimes(2)
+			expect($rootScope.$on).toHaveBeenCalledTimes(1)
 		})
 	})
 })

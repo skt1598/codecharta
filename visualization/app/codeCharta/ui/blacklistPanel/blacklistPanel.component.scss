@@ -1,30 +1,32 @@
-blacklist-panel-component {
-  md-input-container {
-    width: 100%;
-    height: 45px !important;
-  }
+blacklist-panel-flatten-component,
+blacklist-panel-exclude-component {
+	.header {
+		display: block;
 
-  .item-type {
-    min-width: 25px !important;
-  }
+		.header-text {
+			display: inline-block;
+			margin: 0;
+		}
 
-  md-list-item.md-no-proxy,
-  md-list-item .md-no-style {
-    padding: 0;
-  }
+		i.fa {
+			font-size: 12pt;
+			cursor: pointer;
+			color: grey;
+		}
+	}
 
-  .md-list-item-text p {
-    -webkit-touch-callout: initial;
-    -webkit-user-select: initial;
-    -khtml-user-select: initial;
-    -moz-user-select: initial;
-    -ms-user-select: initial;
-    user-select: initial;
-  }
+	md-list-item {
+		border-top: 1px solid rgba(0, 0, 0, 0.12);
 
-  md-list .sub-list {
-    max-height: 300px;
-    overflow: auto;
-  }
+		&.md-no-proxy {
+			padding: 0;
+		}
+	}
+
+	.pattern-text {
+		direction: rtl;
+		overflow: hidden;
+		width: 100%;
+		padding-right: 10px;
+	}
 }
-

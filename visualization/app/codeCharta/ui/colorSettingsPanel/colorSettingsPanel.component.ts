@@ -1,101 +1,84 @@
-import { SettingsService, SettingsServiceSubscriber } from "../../state/settings.service"
 import "./colorSettingsPanel.component.scss"
-import { FileState, MetricData, RecursivePartial, Settings } from "../../codeCharta.model"
+import { FileState } from "../../codeCharta.model"
 import { IRootScopeService } from "angular"
-import { FileStateService, FileStateServiceSubscriber } from "../../state/fileState.service"
-import { MetricService, MetricServiceSubscriber } from "../../state/metric.service"
+import { FileStateService, FileStateSubscriber } from "../../state/fileState.service"
 import { FileStateHelper } from "../../util/fileStateHelper"
-import _ from "lodash"
+import { StoreService } from "../../state/store.service"
+import { setInvertColorRange } from "../../state/store/appSettings/invertColorRange/invertColorRange.actions"
+import { setInvertDeltaColors } from "../../state/store/appSettings/invertDeltaColors/invertDeltaColors.actions"
+import { setMapColors } from "../../state/store/appSettings/mapColors/mapColors.actions"
+import { setWhiteColorBuildings } from "../../state/store/appSettings/whiteColorBuildings/whiteColorBuildings.actions"
+import {
+	InvertDeltaColorsService,
+	InvertDeltaColorsSubscriber
+} from "../../state/store/appSettings/invertDeltaColors/invertDeltaColors.service"
+import {
+	WhiteColorBuildingsService,
+	WhiteColorBuildingsSubscriber
+} from "../../state/store/appSettings/whiteColorBuildings/whiteColorBuildings.service"
+import {
+	InvertColorRangeService,
+	InvertColorRangeSubscriber
+} from "../../state/store/appSettings/invertColorRange/invertColorRange.service"
 
-export class ColorSettingsPanelController implements SettingsServiceSubscriber, FileStateServiceSubscriber, MetricServiceSubscriber {
-	private lastColorMetric: string = null
-	private lastMaxColorMetricValue: number = null
-
+export class ColorSettingsPanelController
+	implements FileStateSubscriber, InvertDeltaColorsSubscriber, WhiteColorBuildingsSubscriber, InvertColorRangeSubscriber {
 	private _viewModel: {
-		neutralColorRangeFlipped: boolean
-		deltaColorFlipped: boolean
+		invertColorRange: boolean
+		invertDeltaColors: boolean
 		whiteColorBuildings: boolean
 		isDeltaState: boolean
 	} = {
-		neutralColorRangeFlipped: null,
-		deltaColorFlipped: null,
+		invertColorRange: null,
+		invertDeltaColors: null,
 		whiteColorBuildings: null,
 		isDeltaState: null
 	}
 
 	/* @ngInject */
-	constructor(private $rootScope: IRootScopeService, private settingsService: SettingsService, private metricService: MetricService) {
-		SettingsService.subscribe(this.$rootScope, this)
+	constructor(private $rootScope: IRootScopeService, private storeService: StoreService) {
 		FileStateService.subscribe(this.$rootScope, this)
-		MetricService.subscribe(this.$rootScope, this)
+		InvertDeltaColorsService.subscribe(this.$rootScope, this)
+		WhiteColorBuildingsService.subscribe(this.$rootScope, this)
+		InvertColorRangeService.subscribe(this.$rootScope, this)
 	}
 
-	public onSettingsChanged(settings: Settings, update: RecursivePartial<Settings>, event: angular.IAngularEvent) {
-		this._viewModel.deltaColorFlipped = settings.appSettings.deltaColorFlipped
-		this._viewModel.whiteColorBuildings = settings.appSettings.whiteColorBuildings
-
-		if (
-			(this.lastColorMetric !== settings.dynamicSettings.colorMetric || !this.containsColorRangeValues(settings)) &&
-			this.metricService.getMetricData()
-		) {
-			this.lastColorMetric = settings.dynamicSettings.colorMetric
-			const maxMetricValue = this.metricService.getMaxMetricByMetricName(settings.dynamicSettings.colorMetric)
-			this.adaptColorRange(settings, maxMetricValue)
-		} else if (settings.dynamicSettings.neutralColorRange) {
-			this._viewModel.neutralColorRangeFlipped = settings.dynamicSettings.neutralColorRange.flipped
-		}
+	public onInvertColorRangeChanged(invertColorRange: boolean) {
+		this._viewModel.invertColorRange = invertColorRange
 	}
 
-	public onFileSelectionStatesChanged(fileStates: FileState[], event: angular.IAngularEvent) {
+	public onInvertDeltaColorsChanged(invertDeltaColors: boolean) {
+		this._viewModel.invertDeltaColors = invertDeltaColors
+	}
+
+	public onWhiteColorBuildingsChanged(whiteColorBuildings: boolean) {
+		this._viewModel.whiteColorBuildings = whiteColorBuildings
+	}
+
+	public onFileStatesChanged(fileStates: FileState[]) {
 		this._viewModel.isDeltaState = FileStateHelper.isDeltaState(fileStates)
 	}
 
-	public onImportedFilesChanged(fileStates: FileState[], event: angular.IAngularEvent) {}
+	public invertColorRange() {
+		this.storeService.dispatch(setInvertColorRange(this._viewModel.invertColorRange))
+	}
 
-	public onMetricDataAdded(metricData: MetricData[], event: angular.IAngularEvent) {
-		const newMaxColorMetricValue: number = this.metricService.getMaxMetricByMetricName(
-			this.settingsService.getSettings().dynamicSettings.colorMetric
+	public invertDeltaColors() {
+		const positiveDelta = this.storeService.getState().appSettings.mapColors.positiveDelta
+		const negativeDelta = this.storeService.getState().appSettings.mapColors.negativeDelta
+
+		this.storeService.dispatch(setInvertDeltaColors(this._viewModel.invertDeltaColors))
+		this.storeService.dispatch(
+			setMapColors({
+				...this.storeService.getState().appSettings.mapColors,
+				negativeDelta: positiveDelta,
+				positiveDelta: negativeDelta
+			})
 		)
-		if (this.lastMaxColorMetricValue !== newMaxColorMetricValue) {
-			this.lastMaxColorMetricValue = newMaxColorMetricValue
-			this.adaptColorRange(this.settingsService.getSettings(), newMaxColorMetricValue)
-		}
 	}
 
-	public onMetricDataRemoved(event: angular.IAngularEvent) {}
-
-	public applySettings() {
-		this.settingsService.updateSettings({
-			dynamicSettings: {
-				neutralColorRange: {
-					flipped: this._viewModel.neutralColorRangeFlipped
-				}
-			},
-			appSettings: {
-				deltaColorFlipped: this._viewModel.deltaColorFlipped,
-				whiteColorBuildings: this._viewModel.whiteColorBuildings
-			}
-		})
-	}
-
-	private containsColorRangeValues(settings): boolean {
-		return _.values(settings.dynamicSettings.neutralColorRange).every(x => x != null)
-	}
-
-	private adaptColorRange(s: Settings, maxMetricValue: number) {
-		const flipped = s.dynamicSettings.neutralColorRange ? s.dynamicSettings.neutralColorRange.flipped : false
-		const firstThird = Math.round((maxMetricValue / 3) * 100) / 100
-		const secondThird = Math.round(firstThird * 2 * 100) / 100
-
-		this.settingsService.updateSettings({
-			dynamicSettings: {
-				neutralColorRange: {
-					flipped: flipped,
-					from: firstThird,
-					to: secondThird
-				}
-			}
-		})
+	public applyWhiteColorBuildings() {
+		this.storeService.dispatch(setWhiteColorBuildings(this._viewModel.whiteColorBuildings))
 	}
 }
 

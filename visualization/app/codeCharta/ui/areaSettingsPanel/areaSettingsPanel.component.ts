@@ -1,14 +1,17 @@
 import "./areaSettingsPanel.component.scss"
 import { IRootScopeService } from "angular"
-import { SettingsService, SettingsServiceSubscriber } from "../../state/settings.service"
-import { CCFile, CodeMapNode, RecursivePartial, Settings } from "../../codeCharta.model"
-import { hierarchy, HierarchyNode } from "d3-hierarchy"
-import { CodeMapPreRenderService, CodeMapPreRenderServiceSubscriber } from "../codeMap/codeMap.preRender.service"
+import { FileState } from "../../codeCharta.model"
+import { FileStateService, FileStateSubscriber } from "../../state/fileState.service"
+import { StoreService } from "../../state/store.service"
+import { setDynamicMargin } from "../../state/store/appSettings/dynamicMargin/dynamicMargin.actions"
+import { setMargin } from "../../state/store/dynamicSettings/margin/margin.actions"
+import _ from "lodash"
+import { DynamicMarginService, DynamicMarginSubscriber } from "../../state/store/appSettings/dynamicMargin/dynamicMargin.service"
+import { MarginService, MarginSubscriber } from "../../state/store/dynamicSettings/margin/margin.service"
 
-export class AreaSettingsPanelController implements SettingsServiceSubscriber, CodeMapPreRenderServiceSubscriber {
-	private static MIN_MARGIN = 15
-	private static MAX_MARGIN = 100
-	private static MARGIN_FACTOR = 4
+export class AreaSettingsPanelController implements FileStateSubscriber, DynamicMarginSubscriber, MarginSubscriber {
+	private static DEBOUNCE_TIME = 400
+	private readonly applyDebouncedMargin: () => void
 
 	private _viewModel: {
 		margin: number
@@ -19,74 +22,36 @@ export class AreaSettingsPanelController implements SettingsServiceSubscriber, C
 	}
 
 	/* @ngInject */
-	constructor(
-		private $rootScope: IRootScopeService,
-		private settingsService: SettingsService,
-		private codeMapPreRenderService: CodeMapPreRenderService
-	) {
-		SettingsService.subscribe(this.$rootScope, this)
-		CodeMapPreRenderService.subscribe(this.$rootScope, this)
+	constructor(private $rootScope: IRootScopeService, private storeService: StoreService) {
+		DynamicMarginService.subscribe(this.$rootScope, this)
+		MarginService.subscribe(this.$rootScope, this)
+		FileStateService.subscribe(this.$rootScope, this)
+
+		this.applyDebouncedMargin = _.debounce(() => {
+			this.storeService.dispatch(setMargin(this._viewModel.margin))
+		}, AreaSettingsPanelController.DEBOUNCE_TIME)
 	}
 
-	public onSettingsChanged(settings: Settings, update: RecursivePartial<Settings>, event: angular.IAngularEvent) {
-		this._viewModel.dynamicMargin = settings.appSettings.dynamicMargin
-		this._viewModel.margin = settings.dynamicSettings.margin
-		this.potentiallyUpdateMargin(this.codeMapPreRenderService.getRenderFile(), settings)
+	public onDynamicMarginChanged(dynamicMargin: boolean) {
+		this._viewModel.dynamicMargin = dynamicMargin
 	}
 
-	public onRenderFileChanged(renderFile: CCFile, event: angular.IAngularEvent) {
-		this._viewModel.dynamicMargin = this.settingsService.getSettings().appSettings.dynamicMargin
-		this.potentiallyUpdateMargin(renderFile, this.settingsService.getSettings())
+	public onMarginChanged(margin: number) {
+		this._viewModel.margin = margin
+	}
+
+	public onFileStatesChanged(fileStates: FileState[]) {
+		this._viewModel.dynamicMargin = true
+		this.applyDynamicMargin()
+	}
+
+	private applyDynamicMargin() {
+		this.storeService.dispatch(setDynamicMargin(this._viewModel.dynamicMargin))
 	}
 
 	public onChangeMarginSlider() {
-		this._viewModel.dynamicMargin = false
-		this.applySettings()
-	}
-
-	public applySettingsDynamicMargin() {
-		this.settingsService.updateSettings({
-			appSettings: {
-				dynamicMargin: this._viewModel.dynamicMargin
-			}
-		})
-	}
-
-	public applySettings() {
-		this.settingsService.updateSettings({
-			dynamicSettings: {
-				margin: this._viewModel.margin
-			},
-			appSettings: {
-				dynamicMargin: this._viewModel.dynamicMargin
-			}
-		})
-	}
-
-	private potentiallyUpdateMargin(renderFile: CCFile, settings: Settings) {
-		if (settings.appSettings.dynamicMargin && settings.dynamicSettings.areaMetric && renderFile) {
-			const newMargin = this.computeMargin(settings.dynamicSettings.areaMetric, renderFile)
-			if (this._viewModel.margin !== newMargin) {
-				this._viewModel.margin = newMargin
-				this.applySettings()
-			}
-		}
-	}
-
-	private computeMargin(areaMetric: string, renderFile: CCFile): number {
-		let leaves = hierarchy<CodeMapNode>(renderFile.map).leaves()
-		let numberOfBuildings = 0
-		let totalArea = 0
-
-		leaves.forEach((node: HierarchyNode<CodeMapNode>) => {
-			numberOfBuildings++
-			if (node.data.attributes && node.data.attributes[areaMetric]) {
-				totalArea += node.data.attributes[areaMetric]
-			}
-		})
-
-		let margin: number = AreaSettingsPanelController.MARGIN_FACTOR * Math.round(Math.sqrt(totalArea / numberOfBuildings))
-		return Math.min(AreaSettingsPanelController.MAX_MARGIN, Math.max(AreaSettingsPanelController.MIN_MARGIN, margin))
+		this.applyDebouncedMargin()
+		this.storeService.dispatch(setDynamicMargin(false))
 	}
 }
 

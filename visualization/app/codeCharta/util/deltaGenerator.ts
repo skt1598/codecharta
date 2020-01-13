@@ -2,6 +2,7 @@ import * as d3 from "d3"
 import { CodeMapNode, CCFile, KeyValuePair, FileMeta } from "../codeCharta.model"
 import _ from "lodash"
 import { MapBuilder } from "./mapBuilder"
+import { FileNameHelper } from "./fileNameHelper"
 
 export class DeltaGenerator {
 	public static getDeltaFile(referenceFile: CCFile, comparisonFile: CCFile): CCFile {
@@ -77,9 +78,13 @@ export class DeltaGenerator {
 
 	private static getFileMetaData(referenceFile: CCFile, comparisonFile: CCFile): FileMeta {
 		return {
-			fileName: "Delta between " + referenceFile.fileMeta.fileName + ", " + comparisonFile.fileMeta.fileName,
+			fileName:
+				"delta_between_" +
+				FileNameHelper.withoutCCJsonExtension(referenceFile.fileMeta.fileName) +
+				"_and_" +
+				FileNameHelper.withoutCCJsonExtension(comparisonFile.fileMeta.fileName),
 			apiVersion: require("../../../package.json").codecharta.apiVersion,
-			projectName: "Delta between " + referenceFile.fileMeta.projectName + ", " + comparisonFile.fileMeta.projectName
+			projectName: "delta_between_" + referenceFile.fileMeta.projectName + "_and_" + comparisonFile.fileMeta.projectName
 		}
 	}
 
@@ -91,7 +96,7 @@ export class DeltaGenerator {
 				fileSettings: {
 					edges: [],
 					blacklist: [],
-					attributeTypes: {},
+					attributeTypes: { nodes: [], edges: [] },
 					markedPackages: []
 				}
 			}

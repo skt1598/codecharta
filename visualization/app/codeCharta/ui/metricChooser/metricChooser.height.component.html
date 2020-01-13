@@ -1,14 +1,31 @@
-<md-input-container class="md-block">
-    <i class='fa fa-arrows-v'></i>
+<md-input-container>
+	<i class="fa fa-arrows-v"></i>
 
-    <md-select ng-model="$ctrl._viewModel.heightMetric" ng-change="$ctrl.applySettingsHeightMetric()">
-        <md-option ng-repeat="metric in $ctrl._viewModel.metricData" value="{{::metric.name}}">
-            {{::metric.name}}
-            <span class="metric-max-value">({{::metric.maxValue}})</span>
-        </md-option>
-    </md-select>
+	<label></label>
+	<md-select
+		ng-model="$ctrl._viewModel.heightMetric"
+		ng-change="$ctrl.applySettingsHeightMetric()"
+		md-on-close="$ctrl.clearSearchTerm()"
+		md-on-open="$ctrl.focusInputField('height-metric')"
+		md-container-class="ribbonBarDropdown"
+	>
+		<md-select-header>
+			<input
+				class="metric-search height-metric"
+				ng-model="$ctrl._viewModel.searchTerm"
+				type="text"
+				placeholder="&#xF002; Metric (highest value)"
+				ng-keydown="$event.stopPropagation()"
+				ng-change="$ctrl.filterMetricData()"
+			/>
+		</md-select-header>
+		<md-content class="option-group">
+			<md-option ng-repeat="metric in $ctrl._viewModel.metricData" value="{{::metric.name}}">
+				{{::metric.name}}
+				<span class="metric-max-value">({{::metric.maxValue}})</span>
+			</md-option>
+		</md-content>
+	</md-select>
 
-    <span class="metric-value">{{($ctrl.hoveredHeightValue | number) || "-"}}
-        <span style="color: {{$ctrl.hoveredDeltaColor}};" ng-hide="!$ctrl.hoveredHeightDelta">(&Delta;{{$ctrl.hoveredHeightDelta | number}})</span>
-    </span>
+	<height-metric-value-hovered-component></height-metric-value-hovered-component>
 </md-input-container>

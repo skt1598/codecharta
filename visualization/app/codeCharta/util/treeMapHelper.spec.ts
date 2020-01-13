@@ -1,28 +1,24 @@
 import { TreeMapHelper } from "./treeMapHelper"
 import { SquarifiedValuedCodeMapNode } from "./treeMapGenerator"
-import { CodeMapNode, Settings } from "../codeCharta.model"
-import { SETTINGS } from "./dataMocks"
+import { CodeMapNode, EdgeVisibility, BlacklistType, State } from "../codeCharta.model"
+import { CODE_MAP_BUILDING, STATE } from "./dataMocks"
 
 describe("treeMapHelper", () => {
 	describe("build node", () => {
 		let codeMapNode: CodeMapNode
 		let squaredNode: SquarifiedValuedCodeMapNode
-		let settings
+		let state
 
 		let heightScale = 1
-		let heightValue = 100
-		let depth = 0
-		let parent = null
-		let minHeight = 1
-		let folderHeight = 2
 		let maxHeight = 2000
+		let isDeltaState = false
 
 		beforeEach(() => {
 			codeMapNode = {
 				name: "Anode",
 				path: "/root/Anode",
 				type: "File",
-				attributes: {}
+				attributes: { theHeight: 100 }
 			} as CodeMapNode
 
 			squaredNode = {
@@ -34,24 +30,15 @@ describe("treeMapHelper", () => {
 				y1: 400
 			} as SquarifiedValuedCodeMapNode
 
-			settings = SETTINGS
-			settings.treeMapSettings.mapSize = 1
-			settings.dynamicSettings.margin = 15
-			settings.appSettings.invertHeight = false
+			state = STATE
+			state.treeMap.mapSize = 1
+			state.dynamicSettings.margin = 15
+			state.dynamicSettings.heightMetric = "theHeight"
+			state.appSettings.invertHeight = false
 		})
 
 		function buildNode() {
-			return TreeMapHelper.buildNodeFrom(
-				squaredNode,
-				heightScale,
-				heightValue,
-				maxHeight,
-				depth,
-				parent,
-				settings,
-				minHeight,
-				folderHeight
-			)
+			return TreeMapHelper.buildNodeFrom(squaredNode, heightScale, maxHeight, state, isDeltaState)
 		}
 
 		it("minimal", () => {
@@ -59,36 +46,27 @@ describe("treeMapHelper", () => {
 		})
 
 		it("invertHeight", () => {
-			settings.appSettings.invertHeight = true
+			state.appSettings.invertHeight = true
 			expect(buildNode()).toMatchSnapshot()
 		})
 
 		it("deltas", () => {
 			squaredNode.data.deltas = {}
-			settings.dynamicSettings.heightMetric = "theHeight"
-			squaredNode.data.deltas[settings.dynamicSettings.heightMetric] = 33
+			state.dynamicSettings.heightMetric = "theHeight"
+			squaredNode.data.deltas[state.dynamicSettings.heightMetric] = 33
 			expect(buildNode()).toMatchSnapshot()
 			squaredNode.data.deltas = undefined
 		})
 
 		it("given negative deltas the resulting heightDelta also should be negative", () => {
 			squaredNode.data.deltas = {}
-			squaredNode.data.deltas[settings.dynamicSettings.heightMetric] = -33
+			squaredNode.data.deltas[state.dynamicSettings.heightMetric] = -33
 			expect(buildNode().heightDelta).toBe(-33)
 			squaredNode.data.deltas = undefined
 		})
 
-		it("is leaf", () => {
-			let tmp = TreeMapHelper.isNodeLeaf
-			TreeMapHelper.isNodeLeaf = jest.fn(() => {
-				return true
-			})
-			expect(buildNode()).toMatchSnapshot()
-			TreeMapHelper.isNodeLeaf = tmp
-		})
-
 		it("should set lowest possible height caused by other visible edge pairs", () => {
-			settings.fileSettings.edges = [
+			state.fileSettings.edges = [
 				{
 					fromNodeName: "/root/AnotherNode1",
 					toNodeName: "/root/AnotherNode2",
@@ -104,7 +82,7 @@ describe("treeMapHelper", () => {
 
 		it("should set markingColor according to markedPackages", () => {
 			const color = "#FF0000"
-			settings.fileSettings.markedPackages = [
+			state.fileSettings.markedPackages = [
 				{
 					path: "/root/Anode",
 					color: color,
@@ -116,7 +94,7 @@ describe("treeMapHelper", () => {
 
 		it("should set no markingColor according to markedPackages", () => {
 			const color = "#FF0000"
-			settings.fileSettings.markedPackages = [
+			state.fileSettings.markedPackages = [
 				{
 					path: "/root/AnotherNode",
 					color: color,
@@ -124,33 +102,6 @@ describe("treeMapHelper", () => {
 				}
 			]
 			expect(buildNode().markingColor).toEqual(null)
-		})
-	})
-
-	describe("detect leaves", () => {
-		it("root with no children is leaf", () => {
-			const root = {}
-			expect(TreeMapHelper.isNodeLeaf(root)).toBeTruthy()
-		})
-
-		it("root plus child should not be a leaf", () => {
-			const root = { children: [{}] }
-			expect(TreeMapHelper.isNodeLeaf(root)).toBeFalsy()
-			expect(TreeMapHelper.isNodeLeaf(root.children[0])).toBeTruthy()
-		})
-
-		it("root plus child in child", () => {
-			const root = { children: [{ children: [{}] }] }
-			expect(TreeMapHelper.isNodeLeaf(root)).toBeFalsy()
-			expect(TreeMapHelper.isNodeLeaf(root.children[0])).toBeFalsy()
-			expect(TreeMapHelper.isNodeLeaf(root.children[0].children[0])).toBeTruthy()
-		})
-
-		it("root plus two children", () => {
-			const root = { children: [{}, {}] }
-			expect(TreeMapHelper.isNodeLeaf(root)).toBeFalsy()
-			expect(TreeMapHelper.isNodeLeaf(root.children[0])).toBeTruthy()
-			expect(TreeMapHelper.isNodeLeaf(root.children[1])).toBeTruthy()
 		})
 	})
 
@@ -179,15 +130,16 @@ describe("treeMapHelper", () => {
 	describe("isNodeToBeFlat", () => {
 		let codeMapNode: CodeMapNode
 		let squaredNode: SquarifiedValuedCodeMapNode
-		let treeMapSettings: Settings
+		let state: State
 
 		beforeEach(() => {
 			codeMapNode = {
 				name: "Anode",
 				path: "/root/Anode",
 				type: "File",
-				attributes: {}
-			} as CodeMapNode
+				attributes: {},
+				edgeAttributes: { pairingRate: { incoming: 42, outgoing: 23 } }
+			}
 
 			squaredNode = {
 				data: codeMapNode,
@@ -198,55 +150,168 @@ describe("treeMapHelper", () => {
 				y1: 400
 			} as SquarifiedValuedCodeMapNode
 
-			treeMapSettings = SETTINGS
-			treeMapSettings.treeMapSettings.mapSize = 1
-			treeMapSettings.dynamicSettings.margin = 15
+			state = STATE
+			state.treeMap.mapSize = 1
+			state.dynamicSettings.margin = 15
 		})
 
 		it("should not be a flat node when no visibleEdges", () => {
-			treeMapSettings.fileSettings.edges = []
-			expect(TreeMapHelper["isNodeToBeFlat"](squaredNode, treeMapSettings)).toBeFalsy()
+			state.fileSettings.edges = []
+			expect(TreeMapHelper["isNodeToBeFlat"](squaredNode, state)).toBeFalsy()
 		})
 
 		it("should be a flat node when other edges are visible", () => {
-			treeMapSettings.fileSettings.edges = [
+			state.appSettings.showOnlyBuildingsWithEdges = true
+			state.fileSettings.edges = [
 				{
 					fromNodeName: "/root/anotherNode",
 					toNodeName: "/root/anotherNode2",
 					attributes: {},
-					visible: true
+					visible: EdgeVisibility.both
 				}
 			]
-			expect(TreeMapHelper["isNodeToBeFlat"](squaredNode, treeMapSettings)).toBeTruthy()
+			expect(TreeMapHelper["isNodeToBeFlat"](squaredNode, state)).toBeTruthy()
 		})
 
 		it("should not be a flat node when it contains edges", () => {
-			treeMapSettings.fileSettings.edges = [
+			state.fileSettings.edges = [
 				{
 					fromNodeName: "/root/Anode",
 					toNodeName: "/root/anotherNode",
 					attributes: {}
 				}
 			]
-			expect(TreeMapHelper["isNodeToBeFlat"](squaredNode, treeMapSettings)).toBeFalsy()
+			expect(TreeMapHelper["isNodeToBeFlat"](squaredNode, state)).toBeFalsy()
 		})
 
 		it("should not be a flat node, because its searched for", () => {
-			treeMapSettings.dynamicSettings.searchedNodePaths = ["/root/Anode"]
-			treeMapSettings.dynamicSettings.searchPattern = "Anode"
-			expect(TreeMapHelper["isNodeToBeFlat"](squaredNode, treeMapSettings)).toBeFalsy()
+			state.dynamicSettings.searchedNodePaths = ["/root/Anode"]
+			state.dynamicSettings.searchPattern = "Anode"
+			expect(TreeMapHelper["isNodeToBeFlat"](squaredNode, state)).toBeFalsy()
 		})
 
 		it("should be a flat node, because other nodes are searched for", () => {
-			treeMapSettings.dynamicSettings.searchedNodePaths = ["/root/anotherNode", "/root/anotherNode2"]
-			treeMapSettings.dynamicSettings.searchPattern = "Anode"
-			expect(TreeMapHelper["isNodeToBeFlat"](squaredNode, treeMapSettings)).toBeTruthy()
+			state.dynamicSettings.searchedNodePaths = ["/root/anotherNode", "/root/anotherNode2"]
+			state.dynamicSettings.searchPattern = "Anode"
+			expect(TreeMapHelper["isNodeToBeFlat"](squaredNode, state)).toBeTruthy()
 		})
 
 		it("should not be a flat node when searchPattern is empty", () => {
-			treeMapSettings.dynamicSettings.searchedNodePaths = ["/root/anotherNode", "/root/anotherNode2"]
-			treeMapSettings.dynamicSettings.searchPattern = ""
-			expect(TreeMapHelper["isNodeToBeFlat"](squaredNode, treeMapSettings)).toBeFalsy()
+			state.dynamicSettings.searchedNodePaths = ["/root/anotherNode", "/root/anotherNode2"]
+			state.dynamicSettings.searchPattern = ""
+			expect(TreeMapHelper["isNodeToBeFlat"](squaredNode, state)).toBeFalsy()
+		})
+
+		it("should be flat if node is flattened in blacklist", () => {
+			state.fileSettings.blacklist = [{ path: "*Anode", type: BlacklistType.flatten }]
+
+			expect(TreeMapHelper["isNodeToBeFlat"](squaredNode, state)).toBeTruthy()
+		})
+
+		it("should not be flat if node is not blacklisted", () => {
+			state.fileSettings.blacklist = []
+
+			expect(TreeMapHelper["isNodeToBeFlat"](squaredNode, state)).toBeFalsy()
+		})
+	})
+
+	describe("getBuildingColor", () => {
+		let node: CodeMapNode
+		let state: State
+
+		beforeEach(() => {
+			node = {
+				name: "Anode",
+				path: "/root/Anode",
+				type: "File",
+				attributes: {}
+			} as CodeMapNode
+
+			node.attributes = { validMetircName: 0 }
+
+			state = STATE
+			state.appSettings.invertColorRange = false
+			state.appSettings.whiteColorBuildings = false
+			state.dynamicSettings.colorRange.from = 5
+			state.dynamicSettings.colorRange.to = 10
+			state.dynamicSettings.colorMetric = "validMetircName"
+		})
+
+		it("creates grey building for undefined colorMetric", () => {
+			state.dynamicSettings.colorMetric = "invalid"
+			const buildingColor = TreeMapHelper["getBuildingColor"](node, state, false, false)
+			expect(buildingColor).toBe(state.appSettings.mapColors.base)
+		})
+
+		it("creates flat colored building", () => {
+			const flattend = true
+
+			const buildingColor = TreeMapHelper["getBuildingColor"](node, state, false, flattend)
+
+			expect(buildingColor).toBe(state.appSettings.mapColors.flat)
+		})
+
+		it("creates green colored building colorMetricValue < colorRangeFrom", () => {
+			const buildingColor = TreeMapHelper["getBuildingColor"](node, state, false, false)
+
+			expect(buildingColor).toBe(state.appSettings.mapColors.positive)
+		})
+
+		it("creates white colored building colorMetricValue < colorRangeFrom", () => {
+			state.appSettings.whiteColorBuildings = true
+
+			const buildingColor = TreeMapHelper["getBuildingColor"](node, state, false, false)
+
+			expect(buildingColor).toBe(state.appSettings.mapColors.lightGrey)
+		})
+
+		it("creates red colored building colorMetricValue < colorRangeFrom with inverted range", () => {
+			state.appSettings.invertColorRange = true
+
+			const buildingColor = TreeMapHelper["getBuildingColor"](node, state, false, false)
+
+			expect(buildingColor).toBe(state.appSettings.mapColors.negative)
+		})
+
+		it("creates red colored building colorMetricValue > colorRangeFrom", () => {
+			node.attributes = { validMetircName: 12 }
+
+			const buildingColor = TreeMapHelper["getBuildingColor"](node, state, false, false)
+
+			expect(buildingColor).toBe(state.appSettings.mapColors.negative)
+		})
+
+		it("creates green colored building colorMetricValue > colorRangeFrom with inverted range", () => {
+			state.appSettings.invertColorRange = true
+			node.attributes = { validMetircName: 12 }
+
+			const buildingColor = TreeMapHelper["getBuildingColor"](node, state, false, false)
+
+			expect(buildingColor).toBe(state.appSettings.mapColors.positive)
+		})
+
+		it("creates white colored building colorMetricValue > colorRangeFrom with inverted range", () => {
+			state.appSettings.invertColorRange = true
+			state.appSettings.whiteColorBuildings = true
+			node.attributes = { validMetircName: 12 }
+
+			const buildingColor = TreeMapHelper["getBuildingColor"](node, state, false, false)
+
+			expect(buildingColor).toBe(state.appSettings.mapColors.lightGrey)
+		})
+
+		it("creates yellow colored building", () => {
+			node.attributes = { validMetircName: 7 }
+			const buildingColor = TreeMapHelper["getBuildingColor"](node, state, false, false)
+			expect(buildingColor).toBe(state.appSettings.mapColors.neutral)
+		})
+	})
+
+	describe("buildingArrayToMap", () => {
+		it("should convert a array of buildings to a map", () => {
+			const result = TreeMapHelper.buildingArrayToMap([CODE_MAP_BUILDING])
+
+			expect(result.get(CODE_MAP_BUILDING.id)).toEqual(CODE_MAP_BUILDING)
 		})
 	})
 })

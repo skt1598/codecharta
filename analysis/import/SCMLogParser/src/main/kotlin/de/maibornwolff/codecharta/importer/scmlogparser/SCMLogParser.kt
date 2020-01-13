@@ -1,5 +1,6 @@
 package de.maibornwolff.codecharta.importer.scmlogparser
 
+import de.maibornwolff.codecharta.filter.mergefilter.MergeFilter
 import de.maibornwolff.codecharta.importer.scmlogparser.InputFormatNames.GIT_LOG
 import de.maibornwolff.codecharta.importer.scmlogparser.InputFormatNames.SVN_LOG
 import de.maibornwolff.codecharta.importer.scmlogparser.converter.ProjectConverter
@@ -11,21 +12,25 @@ import de.maibornwolff.codecharta.importer.scmlogparser.parser.git.GitLogParserS
 import de.maibornwolff.codecharta.importer.scmlogparser.parser.git.GitLogRawParserStrategy
 import de.maibornwolff.codecharta.importer.scmlogparser.parser.svn.SVNLogParserStrategy
 import de.maibornwolff.codecharta.model.Project
+import de.maibornwolff.codecharta.serialization.ProjectDeserializer
 import de.maibornwolff.codecharta.serialization.ProjectSerializer
+import org.mozilla.universalchardet.UniversalDetector
 import picocli.CommandLine
-import java.io.File
-import java.io.IOException
-import java.io.OutputStreamWriter
+import java.io.*
+import java.nio.charset.Charset
 import java.util.*
 import java.util.concurrent.Callable
 import java.util.stream.Stream
+
 
 @CommandLine.Command(
         name = "scmlogparser",
         description = ["generates cc.json from scm log file (git or svn)"],
         footer = ["Copyright(c) 2018, MaibornWolff GmbH"]
 )
-class SCMLogParser: Callable<Void> {
+class SCMLogParser(private val input: InputStream = System.`in`,
+                   private val output: PrintStream = System.out,
+                   private val error: PrintStream = System.err) : Callable<Void> {
 
     @CommandLine.Option(names = ["-h", "--help"], usageHelp = true, description = ["displays this help and exits"])
     private var help = false
@@ -47,6 +52,9 @@ class SCMLogParser: Callable<Void> {
             description = ["analysis of svn log, equivalent --input-format SVN_LOG"])
     private var svnLog = false
 
+    @CommandLine.Option(names = ["--silent"], description = ["suppress command line output during process"])
+    private var silent = false
+
     @CommandLine.Option(names = ["--input-format"], description = ["input format for parsing"])
     private var inputFormatNames: InputFormatNames = GIT_LOG
 
@@ -59,11 +67,15 @@ class SCMLogParser: Callable<Void> {
     private val metricsFactory: MetricsFactory
         get() {
             val nonChurnMetrics = Arrays.asList(
+                    "age_in_weeks",
                     "number_of_authors",
                     "number_of_commits",
+                    "number_of_renames",
                     "range_of_weeks_with_commits",
                     "successive_weeks_of_commits",
-                    "weeks_with_commits"
+                    "weeks_with_commits",
+                    "highly_coupled_files",
+                    "median_coupled_files"
             )
 
             if (getInputFormatNames() == null) {
@@ -78,16 +90,24 @@ class SCMLogParser: Callable<Void> {
 
     @Throws(IOException::class)
     override fun call(): Void? {
-        val project = createProjectFromLog(
+
+        print(" ")
+        var project = createProjectFromLog(
                 file!!,
                 logParserStrategy,
                 metricsFactory,
                 projectName,
-                addAuthor)
-        if (!outputFile.isEmpty()) {
+                addAuthor,
+                silent)
+
+        val pipedProject = ProjectDeserializer.deserializeProject(input)
+        if (pipedProject != null) {
+            project = MergeFilter.mergePipedWithCurrentProject(pipedProject, project, projectName)
+        }
+        if (outputFile.isNotEmpty()) {
             ProjectSerializer.serializeProjectAndWriteToFile(project, outputFile)
         } else {
-            ProjectSerializer.serializeProject(project, OutputStreamWriter(System.out))
+            ProjectSerializer.serializeProject(project, OutputStreamWriter(output))
         }
 
         return null
@@ -113,6 +133,22 @@ class SCMLogParser: Callable<Void> {
             InputFormatNames.GIT_LOG_NUMSTAT_RAW -> GitLogNumstatRawParserStrategy()
             SVN_LOG                              -> SVNLogParserStrategy()
         }
+    }
+
+    private fun createProjectFromLog(
+            pathToLog: File,
+            parserStrategy: LogParserStrategy,
+            metricsFactory: MetricsFactory,
+            projectName: String,
+            containsAuthors: Boolean,
+            silent: Boolean = false
+    ): Project {
+        val encoding = guessEncoding(pathToLog) ?: "UTF-8"
+        if (!silent) error.println("Assumed encoding $encoding")
+        val lines: Stream<String> = pathToLog.readLines(Charset.forName(encoding)).stream()
+
+        val projectConverter = ProjectConverter(containsAuthors, projectName)
+        return SCMLogProjectCreator(parserStrategy, metricsFactory, projectConverter, silent).parse(lines)
     }
 
     // not implemented yet.
@@ -154,18 +190,24 @@ class SCMLogParser: Callable<Void> {
             CommandLine.call(SCMLogParser(), System.out, *args)
         }
 
-        @Throws(IOException::class)
-        private fun createProjectFromLog(
-                pathToLog: File,
-                parserStrategy: LogParserStrategy,
-                metricsFactory: MetricsFactory,
-                projectName: String,
-                containsAuthors: Boolean
-        ): Project {
+        @JvmStatic
+        fun mainWithInOut(input: InputStream, output: PrintStream, error: PrintStream, args: Array<String>) {
+            CommandLine.call(SCMLogParser(input, output, error), output, *args)
+        }
 
-            val lines = pathToLog.readLines().stream()
-            val projectConverter = ProjectConverter(containsAuthors, projectName)
-            return SCMLogProjectCreator(parserStrategy, metricsFactory, projectConverter).parse(lines)
+        private fun guessEncoding(pathToLog: File): String? {
+            val inputStream = pathToLog.inputStream()
+            val buffer = ByteArray(4096)
+            val detector = UniversalDetector(null)
+
+            var sizeRead = inputStream.read(buffer)
+            while (sizeRead > 0 && !detector.isDone) {
+                detector.handleData(buffer, 0, sizeRead)
+                sizeRead = inputStream.read(buffer)
+            }
+            detector.dataEnd()
+
+            return detector.detectedCharset
         }
     }
 }

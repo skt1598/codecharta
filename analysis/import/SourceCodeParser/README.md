@@ -1,27 +1,72 @@
 # Source Code Parser
 
-A parser for source code like Java or JavaScript.
+A parser to generate code metrics from a source code file or a project folder. It generates either a cc.json or a csv file.
+
+## Supported languages
+
+- Java
+
+## Supported Metrics
+
+- rloc: Real lines of code
+- classes
+- functions
+- statements
+- comment_lines
+- mcc: McCabe Complexity / Cyclomatic complexity
+- cognitive_complexity
+- commented_out_code_blocks
+- max_nesting_level
+- code_smell
+- security_hotspot
+- vulnerability
+- bug
+- sonar_issue_other
 
 ## Run
 
-Run `./gradlew build` which will generate our jar. 
-Then run either 
+The SourceCodeParser can analyze either a single file or a project folder; here are some sample commands:
+
 ```
-java -jar build/libs/codecharta-sourcecodeparser-x.xx.x.jar src/test/resources/ --format=table
-```
-or 
-```
-java -jar build/libs/codecharta-sourcecodeparser-x.xx.x.jar src/test/resources/ScriptShellSample.java --format=table
+./ccsh sourcecodeparser src/test/resources -o foo.cc.json
 ```
 
-## Grammars
+or
 
-You can put new grammars into `src/main/antlr` and generate the lexer and parser with `gradlew generateGrammarSource`.
+```
+./ccsh sourcecodeparser src/test/resources/foo.java -o foo.cc.json
+```
 
-## Architecture
+or
 
-This parser follows the onion/hexagonal architecture. 
+```
+./ccsh sourcecodeparser src/test/resources -o foo.cc.json --defaultExcludes -e=something -e=/.*\.foo --f=table
+```
 
-## Acknowledgements
+or
 
-Inspired by the [Antlr Mega Tutorial](https://tomassetti.me/antlr-mega-tutorial/#java-setup). 
+```
+./ccsh sourcecodeparser src/test/resources -o foo.cc.json --f=table -i
+```
+
+If a project is piped into the SourceCodeParser, the results and the piped project are merged.
+The resulting project has the project name specified for the SourceCodeParser.
+
+## Parameters
+
+- --defaultExcludes (exclude build, target, dist and out folders as well as files/folders starting with '.')
+- -e, --exclude=\<excludePattern> (exclude file/folder from scan according to regex pattern)
+- -f, --format=\<outputFormat> (table or json)
+- -h, --help
+- -i, --noIssues (do not search for sonar issues)
+- -o, --outputFile=\<outputFile> (file to write output to, if empty stdout is used)
+- -p, --projectName=\<projectName>
+- -v, --verbose
+
+## Sonar Plugins
+
+In order to generate the code metrics, the SourceCodeParser uses Sonar plugins. New languages can be added to the Source code parser by writing a class that extends SonarAnalyzer and incorporate the respective Sonar Plugin.
+
+## License
+
+This program uses the [SonarJava library](https://github.com/SonarSource/sonar-java/), which is licensed under the GNU Lesser General Public Library, version 3.

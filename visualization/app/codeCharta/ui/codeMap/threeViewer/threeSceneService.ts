@@ -1,12 +1,25 @@
 import * as THREE from "three"
-import { Scene } from "three"
+import { Scene, Vector3 } from "three"
 import { Group } from "three"
 import { CodeMapMesh } from "../rendering/codeMapMesh"
+import { CodeMapBuilding } from "../rendering/codeMapBuilding"
+import { CodeMapPreRenderServiceSubscriber, CodeMapPreRenderService } from "../codeMap.preRender.service"
+import { CodeMapNode } from "../../../codeCharta.model"
+import { IRootScopeService } from "angular"
+import { StoreService } from "../../../state/store.service"
 
-/**
- * A service which manages the Three.js scene in an angular way.
- */
-export class ThreeSceneService {
+export interface BuildingSelectedEventSubscriber {
+	onBuildingSelected(selectedBuilding: CodeMapBuilding)
+}
+
+export interface BuildingDeselectedEventSubscriber {
+	onBuildingDeselected()
+}
+
+export class ThreeSceneService implements CodeMapPreRenderServiceSubscriber {
+	private static readonly BUILDING_SELECTED_EVENT = "building-selected"
+	private static readonly BUILDING_DESELECTED_EVENT = "building-deselected"
+
 	public scene: Scene
 	public labels: Group
 	public edgeArrows: Group
@@ -14,9 +27,13 @@ export class ThreeSceneService {
 	private lights: Group
 	private mapMesh: CodeMapMesh
 
-	constructor() {
-		this.scene = new THREE.Scene()
+	private selected: CodeMapBuilding = null
+	private highlighted: CodeMapBuilding[] = []
 
+	constructor(private $rootScope: IRootScopeService, private storeService: StoreService) {
+		CodeMapPreRenderService.subscribe(this.$rootScope, this)
+
+		this.scene = new THREE.Scene()
 		this.mapGeometry = new THREE.Group()
 		this.lights = new THREE.Group()
 		this.labels = new THREE.Group()
@@ -28,6 +45,49 @@ export class ThreeSceneService {
 		this.scene.add(this.edgeArrows)
 		this.scene.add(this.labels)
 		this.scene.add(this.lights)
+	}
+
+	public onRenderMapChanged(map: CodeMapNode) {
+		this.reselectBuilding()
+	}
+
+	public highlightBuildings() {
+		const state = this.storeService.getState()
+		this.getMapMesh().highlightBuilding(this.highlighted, this.selected, state)
+	}
+
+	public highlightSingleBuilding(building: CodeMapBuilding) {
+		this.highlighted = []
+		this.addBuildingToHighlightingList(building)
+		this.highlightBuildings()
+	}
+
+	public addBuildingToHighlightingList(building: CodeMapBuilding) {
+		this.highlighted.push(building)
+	}
+
+	public clearHighlight() {
+		this.getMapMesh().clearHighlight(this.selected)
+		this.highlighted = []
+	}
+
+	public selectBuilding(building: CodeMapBuilding) {
+		const color = this.storeService.getState().appSettings.mapColors.selected
+		this.getMapMesh().selectBuilding(building, this.selected, color)
+		this.selected = building
+		this.highlightBuildings()
+		this.$rootScope.$broadcast(ThreeSceneService.BUILDING_SELECTED_EVENT, this.selected)
+	}
+
+	public clearSelection() {
+		if (this.selected) {
+			this.getMapMesh().clearSelection(this.selected)
+			this.$rootScope.$broadcast(ThreeSceneService.BUILDING_DESELECTED_EVENT)
+		}
+		if (this.highlighted.length > 0) {
+			this.highlightBuildings()
+		}
+		this.selected = null
 	}
 
 	public initLights() {
@@ -64,14 +124,49 @@ export class ThreeSceneService {
 			this.mapGeometry.remove(this.mapGeometry.children[0])
 		}
 
-		this.mapGeometry.position.x = -mapSize / 2.0
+		this.mapGeometry.position.x = -mapSize
 		this.mapGeometry.position.y = 0.0
-		this.mapGeometry.position.z = -mapSize / 2.0
+		this.mapGeometry.position.z = -mapSize
 
 		this.mapGeometry.add(this.mapMesh.getThreeMesh())
 	}
 
 	public getMapMesh(): CodeMapMesh {
 		return this.mapMesh
+	}
+
+	public scale(scale: Vector3, mapSize: number) {
+		this.mapGeometry.scale.set(scale.x, scale.y, scale.z)
+		this.mapGeometry.position.set(-mapSize * scale.x, 0.0, -mapSize * scale.z)
+		this.mapMesh.setScale(scale)
+	}
+
+	public getSelectedBuilding(): CodeMapBuilding {
+		return this.selected
+	}
+
+	public getHighlightedBuilding(): CodeMapBuilding {
+		return this.highlighted[0]
+	}
+
+	private reselectBuilding() {
+		if (this.selected) {
+			const buildingToSelect: CodeMapBuilding = this.getMapMesh().getBuildingByPath(this.selected.node.path)
+			if (buildingToSelect) {
+				this.selectBuilding(buildingToSelect)
+			}
+		}
+	}
+
+	public static subscribeToBuildingDeselectedEvents($rootScope: IRootScopeService, subscriber: BuildingDeselectedEventSubscriber) {
+		$rootScope.$on(this.BUILDING_DESELECTED_EVENT, e => {
+			subscriber.onBuildingDeselected()
+		})
+	}
+
+	public static subscribeToBuildingSelectedEvents($rootScope: IRootScopeService, subscriber: BuildingSelectedEventSubscriber) {
+		$rootScope.$on(this.BUILDING_SELECTED_EVENT, (e, selectedBuilding: CodeMapBuilding) => {
+			subscriber.onBuildingSelected(selectedBuilding)
+		})
 	}
 }

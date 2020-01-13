@@ -1,24 +1,29 @@
 import "./state.module"
 import { getService, instantiateModule } from "../../../mocks/ng.mockhelper"
 import { IRootScopeService } from "angular"
-import { CCFile, FileState, FileSelectionState, MetricData } from "../codeCharta.model"
-import { TEST_DELTA_MAP_A, TEST_DELTA_MAP_B } from "../util/dataMocks"
+import { FileState, FileSelectionState, MetricData, AttributeTypeValue, State } from "../codeCharta.model"
+import { TEST_DELTA_MAP_A, TEST_DELTA_MAP_B, withMockedEventMethods, STATE } from "../util/dataMocks"
 import { MetricService } from "./metric.service"
 import { FileStateService } from "./fileState.service"
 import { NodeDecorator } from "../util/nodeDecorator"
-import { SettingsService } from "./settings.service"
+import _ from "lodash"
+import { BlacklistService } from "./store/fileSettings/blacklist/blacklist.service"
+import { StoreService } from "./store.service"
 
 describe("MetricService", () => {
 	let metricService: MetricService
 	let $rootScope: IRootScopeService
 	let fileStateService: FileStateService
+	let storeService: StoreService
+
 	let fileStates: FileState[]
-	let files: CCFile[]
+	let metricData: MetricData[]
+	let state: State
 
 	beforeEach(() => {
 		restartSystem()
 		rebuildService()
-		withMockedEventMethods()
+		withMockedEventMethods($rootScope)
 	})
 
 	function restartSystem() {
@@ -26,99 +31,104 @@ describe("MetricService", () => {
 
 		$rootScope = getService<IRootScopeService>("$rootScope")
 		fileStateService = getService<FileStateService>("fileStateService")
+		storeService = getService<StoreService>("storeService")
 
-		files = [TEST_DELTA_MAP_A, TEST_DELTA_MAP_B]
 		fileStates = [
 			{ file: NodeDecorator.preDecorateFile(TEST_DELTA_MAP_A), selectedAs: FileSelectionState.None },
 			{ file: NodeDecorator.preDecorateFile(TEST_DELTA_MAP_B), selectedAs: FileSelectionState.None }
 		]
-	}
-
-	function rebuildService() {
-		metricService = new MetricService($rootScope, fileStateService)
-		metricService["metricData"] = [
+		metricData = [
 			{ name: "rloc", maxValue: 999999, availableInVisibleMaps: true },
 			{ name: "functions", maxValue: 999999, availableInVisibleMaps: true },
 			{ name: "mcc", maxValue: 999999, availableInVisibleMaps: true }
 		]
-		metricService["fileStates"] = fileStates
+		state = _.cloneDeep(STATE)
 	}
 
-	function withMockedEventMethods() {
-		$rootScope.$broadcast = metricService["$rootScope"].$broadcast = jest.fn((event, data) => {})
+	function rebuildService() {
+		metricService = new MetricService($rootScope, fileStateService, storeService)
+		metricService["metricData"] = metricData
 	}
 
 	describe("constructor", () => {
-		beforeEach(() => {
-			FileStateService.subscribe = jest.fn()
-			SettingsService.subscribe = jest.fn()
-		})
-
 		it("should subscribe to FileStateService", () => {
+			FileStateService.subscribe = jest.fn()
+
 			rebuildService()
 
 			expect(FileStateService.subscribe).toHaveBeenCalledWith($rootScope, metricService)
 		})
 
-		it("should subscribe to SettingsService", () => {
+		it("should subscribe to BlacklistService", () => {
+			BlacklistService.subscribe = jest.fn()
+
 			rebuildService()
 
-			expect(SettingsService.subscribe).toHaveBeenCalledWith($rootScope, metricService)
+			expect(BlacklistService.subscribe).toHaveBeenCalledWith($rootScope, metricService)
 		})
 	})
 
-	describe("onFileSelectionStatesChanged", () => {
+	describe("onFileStatesChanged", () => {
 		beforeEach(() => {
-			metricService["calculateMetrics"] = jest.fn().mockReturnValue([])
-		})
-
-		it("should set unary metric into metricData", () => {
-			metricService.onFileSelectionStatesChanged(fileStates, undefined)
-
-			expect(metricService.getMetrics()).toContain("unary")
-			const unary: MetricData = metricService.getMetricData().find(x => x.name == "unary")
-			expect(unary.maxValue).toBe(1)
-			expect(unary.availableInVisibleMaps).toBe(true)
+			metricService["calculateMetrics"] = jest.fn().mockReturnValue(metricData)
 		})
 
 		it("should trigger METRIC_DATA_ADDED_EVENT", () => {
-			const expected = [{ availableInVisibleMaps: true, maxValue: 1, name: "unary" }]
-
-			metricService.onFileSelectionStatesChanged(fileStates, undefined)
+			metricService.onFileStatesChanged(fileStates)
 
 			expect($rootScope.$broadcast).toHaveBeenCalledTimes(1)
-			expect($rootScope.$broadcast).toHaveBeenCalledWith(MetricService["METRIC_DATA_ADDED_EVENT"], expected)
+			expect($rootScope.$broadcast).toHaveBeenCalledWith(MetricService["METRIC_DATA_ADDED_EVENT"], metricData)
 		})
 	})
 
-	describe("onSettingsChanged", () => {
+	describe("onBlacklistChanged", () => {
 		beforeEach(() => {
 			fileStateService.getFileStates = jest.fn().mockReturnValue(fileStates)
-			metricService["calculateMetrics"] = jest.fn().mockReturnValue({})
-		})
-
-		it("should not call getFileStates when update object is not a blacklist", () => {
-			metricService.onSettingsChanged(null, { fileSettings: { blacklist: null } }, null)
-
-			expect(fileStateService.getFileStates).not.toHaveBeenCalled()
+			metricService["calculateMetrics"] = jest.fn().mockReturnValue(metricData)
 		})
 
 		it("should call calculateMetrics", () => {
-			metricService.onSettingsChanged(null, { fileSettings: { blacklist: [] } }, null)
+			metricService.onBlacklistChanged([])
 
-			expect(metricService["calculateMetrics"]).toHaveBeenCalledWith(fileStates, [], [])
+			expect(metricService["calculateMetrics"]).toHaveBeenCalledWith(fileStates, [])
 		})
 
 		it("should set metricData to new calculated metricData", () => {
-			metricService.onSettingsChanged(null, { fileSettings: { blacklist: [] } }, null)
+			metricService.onBlacklistChanged([])
 
-			expect(metricService["metricData"]).toEqual({})
+			expect(metricService["metricData"]).toEqual(metricData)
 		})
 
 		it("should broadcast a METRIC_DATA_ADDED_EVENT", () => {
-			metricService.onSettingsChanged(null, { fileSettings: { blacklist: [] } }, null)
+			metricService.onBlacklistChanged([])
 
 			expect($rootScope.$broadcast).toHaveBeenCalledWith("metric-data-added", metricService.getMetricData())
+		})
+
+		it("should add unary metric to metricData", () => {
+			metricService.onBlacklistChanged([])
+
+			expect(metricService.getMetricData().filter(x => x.name === "unary").length).toBeGreaterThan(0)
+		})
+	})
+
+	describe("getAttributeTypeByMetric", () => {
+		it("should return absolute", () => {
+			const actual = metricService.getAttributeTypeByMetric("rloc", state)
+
+			expect(actual).toBe(AttributeTypeValue.absolute)
+		})
+
+		it("should return relative", () => {
+			const actual = metricService.getAttributeTypeByMetric("coverage", state)
+
+			expect(actual).toBe(AttributeTypeValue.relative)
+		})
+
+		it("should return null", () => {
+			const actual = metricService.getAttributeTypeByMetric("notfound", state)
+
+			expect(actual).toBeNull()
 		})
 	})
 
@@ -156,7 +166,7 @@ describe("MetricService", () => {
 
 	describe("calculateMetrics", () => {
 		it("should return an empty array if there are no fileStates", () => {
-			const result = metricService["calculateMetrics"]([], [], [])
+			const result = metricService["calculateMetrics"]([], [])
 
 			expect(result).toEqual([])
 			expect(result.length).toBe(0)
@@ -164,7 +174,7 @@ describe("MetricService", () => {
 
 		it("should return an array of metricData sorted by name calculated from fileStats and visibleFileStates", () => {
 			const visibleFileStates = [fileStates[0]]
-			const result = metricService["calculateMetrics"](fileStates, visibleFileStates, [])
+			const result = metricService["calculateMetrics"](fileStates, visibleFileStates)
 			const expected = [
 				{ availableInVisibleMaps: true, maxValue: 1000, name: "functions" },
 				{ availableInVisibleMaps: true, maxValue: 100, name: "mcc" },
@@ -177,7 +187,7 @@ describe("MetricService", () => {
 
 		it("should return an array of fileState metrics sorted by name", () => {
 			const visibleFileStates = []
-			const result = metricService["calculateMetrics"](fileStates, visibleFileStates, [])
+			const result = metricService["calculateMetrics"](fileStates, visibleFileStates)
 			const expected = [
 				{ availableInVisibleMaps: false, maxValue: 1000, name: "functions" },
 				{ availableInVisibleMaps: false, maxValue: 100, name: "mcc" },

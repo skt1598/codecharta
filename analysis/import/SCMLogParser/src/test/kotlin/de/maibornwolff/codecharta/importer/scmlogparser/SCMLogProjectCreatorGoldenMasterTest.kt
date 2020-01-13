@@ -3,6 +3,7 @@ package de.maibornwolff.codecharta.importer.scmlogparser
 import de.maibornwolff.codecharta.importer.scmlogparser.converter.ProjectConverter
 import de.maibornwolff.codecharta.importer.scmlogparser.input.metrics.MetricsFactory
 import de.maibornwolff.codecharta.importer.scmlogparser.parser.LogParserStrategy
+import de.maibornwolff.codecharta.importer.scmlogparser.parser.git.GitLogNumstatRawParserStrategy
 import de.maibornwolff.codecharta.importer.scmlogparser.parser.git.GitLogParserStrategy
 import de.maibornwolff.codecharta.importer.scmlogparser.parser.svn.SVNLogParserStrategy
 import de.maibornwolff.codecharta.model.Project
@@ -33,6 +34,7 @@ class SCMLogProjectCreatorGoldenMasterTest(
         fun data(): Collection<Array<Any>> {
             return Arrays.asList(
                     arrayOf("svn", SVNLogParserStrategy(), true, "example_svn.log", "expected_svn.json"),
+                    arrayOf("git_numstat", GitLogNumstatRawParserStrategy(), true, "example_git_numstat.log", "expected_git_numstat.json"),
                     arrayOf("git", GitLogParserStrategy(), false, "example_git.log", "expected_git.json"))
         }
     }
@@ -53,8 +55,8 @@ class SCMLogProjectCreatorGoldenMasterTest(
         // given
         val projectConverter = ProjectConverter(containsAuthors, PROJECT_NAME)
 
-        val svnSCMLogProjectCreator = SCMLogProjectCreator(strategy, metricsFactory, projectConverter)
-        val ccjsonReader = InputStreamReader(this.javaClass.classLoader.getResourceAsStream(expectedProjectFilename))
+        val svnSCMLogProjectCreator = SCMLogProjectCreator(strategy, metricsFactory, projectConverter, silent = true)
+        val ccjsonReader = InputStreamReader(this.javaClass.classLoader.getResourceAsStream(expectedProjectFilename)!!)
         val expectedProject = ProjectDeserializer.deserializeProject(ccjsonReader)
         val resource = this.javaClass.classLoader.getResource(logFilename)
         val logStream = Files.lines(Paths.get(resource!!.toURI()))

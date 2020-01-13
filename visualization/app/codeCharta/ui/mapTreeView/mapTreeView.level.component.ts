@@ -1,22 +1,24 @@
-import { SettingsService } from "../../state/settings.service"
-import { IRootScopeService, IAngularEvent } from "angular"
+import { IRootScopeService } from "angular"
 import { NodeContextMenuController } from "../nodeContextMenu/nodeContextMenu.component"
-import { CodeMapActionsService } from "../codeMap/codeMap.actions.service"
 import { CodeMapHelper } from "../../util/codeMapHelper"
-import {
-	CodeMapMouseEventServiceSubscriber,
-	CodeMapBuildingTransition,
-	CodeMapMouseEventService
-} from "../codeMap/codeMap.mouseEvent.service"
+import { BuildingHoveredSubscriber, CodeMapMouseEventService, BuildingUnhoveredSubscriber } from "../codeMap/codeMap.mouseEvent.service"
+import { CodeMapNode, BlacklistType, BlacklistItem } from "../../codeCharta.model"
 import { CodeMapBuilding } from "../codeMap/rendering/codeMapBuilding"
-import { CodeMapNode, BlacklistType } from "../../codeCharta.model"
+import { CodeMapPreRenderService } from "../codeMap/codeMap.preRender.service"
+import { StoreService } from "../../state/store.service"
+import { addBlacklistItem, removeBlacklistItem } from "../../state/store/fileSettings/blacklist/blacklist.actions"
+import { focusNode } from "../../state/store/dynamicSettings/focusedNodePath/focusedNodePath.actions"
 
 export interface MapTreeViewHoverEventSubscriber {
 	onShouldHoverNode(node: CodeMapNode)
+
 	onShouldUnhoverNode(node: CodeMapNode)
 }
 
-export class MapTreeViewLevelController implements CodeMapMouseEventServiceSubscriber {
+export class MapTreeViewLevelController implements BuildingHoveredSubscriber, BuildingUnhoveredSubscriber {
+	private static MAP_TREE_VIEW_HOVER_NODE_EVENT = "should-hover-node"
+	private static MAP_TREE_VIEW_UNHOVER_NODE_EVENT = "should-unhover-node"
+
 	private node: CodeMapNode = null
 
 	private _viewModel: {
@@ -30,37 +32,39 @@ export class MapTreeViewLevelController implements CodeMapMouseEventServiceSubsc
 	/* @ngInject */
 	constructor(
 		private $rootScope: IRootScopeService,
-		private codeMapActionsService: CodeMapActionsService,
-		private settingsService: SettingsService
+		private codeMapPreRenderService: CodeMapPreRenderService,
+		private storeService: StoreService
 	) {
-		CodeMapMouseEventService.subscribe(this.$rootScope, this)
+		CodeMapMouseEventService.subscribeToBuildingHovered(this.$rootScope, this)
+		CodeMapMouseEventService.subscribeToBuildingUnhovered(this.$rootScope, this)
 	}
 
 	public getMarkingColor() {
 		// TODO: set a 'black' color in settings.mapColors ?
 		let defaultColor = "#000000"
-		const markingColor = CodeMapHelper.getMarkingColor(this.node, this.settingsService.getSettings().fileSettings.markedPackages)
+		const markingColor = CodeMapHelper.getMarkingColor(this.node, this.storeService.getState().fileSettings.markedPackages)
 		return markingColor ? markingColor : defaultColor
 	}
 
-	public onBuildingHovered(data: CodeMapBuildingTransition, event: IAngularEvent) {
-		if (data.to && data.to.node && this.node && this.node.path && data.to.node.path === this.node.path) {
-			this._viewModel.isHoveredInCodeMap = true
-		} else {
-			this._viewModel.isHoveredInCodeMap = false
-		}
+	public onBuildingHovered(hoveredBuilding: CodeMapBuilding) {
+		this._viewModel.isHoveredInCodeMap = !!(
+			this.node &&
+			this.node.path &&
+			hoveredBuilding.node &&
+			hoveredBuilding.node.path === this.node.path
+		)
 	}
 
-	public onBuildingSelected(data: CodeMapBuildingTransition, event: IAngularEvent) {}
-
-	public onBuildingRightClicked(building: CodeMapBuilding, x: number, y: number, event: IAngularEvent) {}
+	public onBuildingUnhovered() {
+		this._viewModel.isHoveredInCodeMap = false
+	}
 
 	public onMouseEnter() {
-		this.$rootScope.$broadcast("should-hover-node", this.node)
+		this.$rootScope.$broadcast(MapTreeViewLevelController.MAP_TREE_VIEW_HOVER_NODE_EVENT, this.node)
 	}
 
 	public onMouseLeave() {
-		this.$rootScope.$broadcast("should-unhover-node", this.node)
+		this.$rootScope.$broadcast(MapTreeViewLevelController.MAP_TREE_VIEW_UNHOVER_NODE_EVENT, this.node)
 	}
 
 	public onRightClick($event) {
@@ -73,11 +77,16 @@ export class MapTreeViewLevelController implements CodeMapMouseEventServiceSubsc
 	}
 
 	public onLabelClick() {
-		this.codeMapActionsService.focusNode(this.node)
+		this.storeService.dispatch(focusNode(this.node.path))
 	}
 
 	public onEyeClick() {
-		this.codeMapActionsService.toggleNodeVisibility(this.node)
+		const blacklistItem: BlacklistItem = { path: this.node.path, type: BlacklistType.flatten }
+		if (this.node.visible) {
+			this.storeService.dispatch(addBlacklistItem(blacklistItem))
+		} else {
+			this.storeService.dispatch(removeBlacklistItem(blacklistItem))
+		}
 	}
 
 	public isLeaf(node: CodeMapNode = this.node): boolean {
@@ -86,20 +95,39 @@ export class MapTreeViewLevelController implements CodeMapMouseEventServiceSubsc
 
 	public isBlacklisted(node: CodeMapNode): boolean {
 		if (node) {
-			return CodeMapHelper.isBlacklisted(node, this.settingsService.getSettings().fileSettings.blacklist, BlacklistType.exclude)
+			return CodeMapHelper.isBlacklisted(node, this.storeService.getState().fileSettings.blacklist, BlacklistType.exclude)
 		}
 		return false
 	}
 
 	public isSearched(node: CodeMapNode): boolean {
-		if (node != null && this.settingsService.getSettings().dynamicSettings.searchedNodePaths) {
-			return this.settingsService.getSettings().dynamicSettings.searchedNodePaths.filter(path => path == node.path).length > 0
+		if (node != null && this.storeService.getState().dynamicSettings.searchedNodePaths) {
+			return this.storeService.getState().dynamicSettings.searchedNodePaths.filter(path => path == node.path).length > 0
 		}
 		return false
 	}
 
+	public openRootFolderByDefault(depth: number) {
+		if (depth == 0) {
+			this._viewModel.collapsed = false
+		}
+	}
+
 	public sortByFolder(node: CodeMapNode) {
 		return node && node.children && node.children.length > 0 ? 1 : 0
+	}
+
+	public getNodeUnaryValue() {
+		return this.node.attributes["unary"]
+	}
+
+	public getUnaryPercentage() {
+		const rootUnary = this.codeMapPreRenderService.getRenderMap().attributes["unary"]
+		return ((100 * this.getNodeUnaryValue()) / rootUnary).toFixed(0)
+	}
+
+	public isRoot() {
+		return this.node.path.split("/").length === 2
 	}
 
 	public static subscribeToHoverEvents($rootScope: IRootScopeService, subscriber: MapTreeViewHoverEventSubscriber) {

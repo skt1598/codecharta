@@ -1,22 +1,29 @@
 import "./nodeContextMenu.component.scss"
-import angular from "angular"
+import angular, { IRootScopeService } from "angular"
 import { CodeMapActionsService } from "../codeMap/codeMap.actions.service"
 import { CodeMapHelper } from "../../util/codeMapHelper"
-import { SettingsService } from "../../state/settings.service"
-import { CodeMapNode } from "../../codeCharta.model"
+import { BlacklistItem, BlacklistType, CodeMapNode } from "../../codeCharta.model"
 import { CodeMapPreRenderService } from "../codeMap/codeMap.preRender.service"
+import { StoreService } from "../../state/store.service"
+import { addBlacklistItem, removeBlacklistItem } from "../../state/store/fileSettings/blacklist/blacklist.actions"
+import { focusNode } from "../../state/store/dynamicSettings/focusedNodePath/focusedNodePath.actions"
 
-export class NodeContextMenuController {
+export interface ShowNodeContextMenuSubscriber {
+	onShowNodeContextMenu(path: string, type: string, x: number, y: number)
+}
+
+export interface HideNodeContextMenuSubscriber {
+	onHideNodeContextMenu()
+}
+
+export class NodeContextMenuController implements ShowNodeContextMenuSubscriber, HideNodeContextMenuSubscriber {
+	private static SHOW_NODE_CONTEXT_MENU_EVENT = "show-node-context-menu"
+	private static HIDE_NODE_CONTEXT_MENU_EVENT = "hide-node-context-menu"
+
 	private _viewModel: {
-		amountOfDependentEdges: number
-		amountOfVisibleDependentEdges: number
-		anyEdgeIsVisible: boolean
 		contextMenuBuilding: CodeMapNode
 		markingColors: string[]
 	} = {
-		amountOfDependentEdges: null,
-		amountOfVisibleDependentEdges: null,
-		anyEdgeIsVisible: null,
 		contextMenuBuilding: null,
 		markingColors: null
 	}
@@ -26,38 +33,35 @@ export class NodeContextMenuController {
 		private $element: Element,
 		private $timeout,
 		private $window,
-		private $rootScope,
+		private $rootScope: IRootScopeService,
+		private storeService: StoreService,
 		private codeMapActionsService: CodeMapActionsService,
-		private settingsService: SettingsService,
 		private codeMapPreRenderService: CodeMapPreRenderService
 	) {
-		this.$rootScope.$on("show-node-context-menu", (e, data) => {
-			this.show(data.path, data.type, data.x, data.y)
-		})
-		this.$rootScope.$on("hide-node-context-menu", () => {
-			this.hide()
-		})
+		NodeContextMenuController.subscribeToShowNodeContextMenu(this.$rootScope, this)
+		NodeContextMenuController.subscribeToHideNodeContextMenu(this.$rootScope, this)
 
-		document.body.addEventListener("click", () => NodeContextMenuController.broadcastHideEvent(this.$rootScope), true)
-		this._viewModel.markingColors = this.settingsService.getSettings().appSettings.mapColors.markingColors
+		document.body.addEventListener("click", () => this.onHideNodeContextMenu(), true)
+		this._viewModel.markingColors = this.storeService.getState().appSettings.mapColors.markingColors
 	}
 
-	public show(path: string, nodeType: string, mouseX: number, mouseY: number) {
+	public onShowNodeContextMenu(path: string, nodeType: string, mouseX: number, mouseY: number) {
 		this.$timeout(() => {
 			this._viewModel.contextMenuBuilding = CodeMapHelper.getCodeMapNodeFromPath(
 				path,
 				nodeType,
-				this.codeMapPreRenderService.getRenderFile().map
+				this.codeMapPreRenderService.getRenderMap()
 			)
 		}, 50).then(() => {
-			this._viewModel.amountOfDependentEdges = this.codeMapActionsService.amountOfDependentEdges(this._viewModel.contextMenuBuilding)
-			this._viewModel.amountOfVisibleDependentEdges = this.codeMapActionsService.amountOfVisibleDependentEdges(
-				this._viewModel.contextMenuBuilding
-			)
-			this._viewModel.anyEdgeIsVisible = this.codeMapActionsService.isAnyEdgeVisible()
 			const { x, y } = this.calculatePosition(mouseX, mouseY)
 			this.setPosition(x, y)
 		})
+	}
+
+	public onHideNodeContextMenu() {
+		this.$timeout(() => {
+			this._viewModel.contextMenuBuilding = null
+		}, 0)
 	}
 
 	public calculatePosition(mouseX: number, mouseY: number) {
@@ -74,14 +78,16 @@ export class NodeContextMenuController {
 		angular.element(this.$element[0].children[0]).css("left", x + "px")
 	}
 
-	public hideNode() {
-		this.hide()
-		this.codeMapActionsService.hideNode(this._viewModel.contextMenuBuilding)
+	public flattenNode() {
+		this.onHideNodeContextMenu()
+		const blacklistItem: BlacklistItem = { path: this._viewModel.contextMenuBuilding.path, type: BlacklistType.flatten }
+		this.storeService.dispatch(addBlacklistItem(blacklistItem))
 	}
 
 	public showNode() {
-		this.hide()
-		this.codeMapActionsService.showNode(this._viewModel.contextMenuBuilding)
+		this.onHideNodeContextMenu()
+		const blacklistItem: BlacklistItem = { path: this._viewModel.contextMenuBuilding.path, type: BlacklistType.flatten }
+		this.storeService.dispatch(removeBlacklistItem(blacklistItem))
 	}
 
 	public clickColor(color: string) {
@@ -105,62 +111,40 @@ export class NodeContextMenuController {
 	}
 
 	private packageIsMarked(): boolean {
-		return !!this.settingsService
-			.getSettings()
-			.fileSettings.markedPackages.find(mp => mp.path == this._viewModel.contextMenuBuilding.path)
+		return !!this.storeService.getState().fileSettings.markedPackages.find(mp => mp.path == this._viewModel.contextMenuBuilding.path)
 	}
 
 	private packageMatchesColor(color: string): boolean {
-		return !!this.settingsService
-			.getSettings()
+		return !!this.storeService
+			.getState()
 			.fileSettings.markedPackages.find(mp => mp.path == this._viewModel.contextMenuBuilding.path && mp.color == color)
 	}
 
 	private packageMatchesColorOfParentMP(color: string): boolean {
-		const s = this.settingsService.getSettings()
-		const parentMP = this.codeMapActionsService.getParentMP(this._viewModel.contextMenuBuilding.path, s)
-		return !!s.fileSettings.markedPackages.find(mp => parentMP && mp.path == parentMP.path && mp.color == color)
+		const parentMP = this.codeMapActionsService.getParentMP(this._viewModel.contextMenuBuilding.path)
+		return !!this.storeService
+			.getState()
+			.fileSettings.markedPackages.find(mp => parentMP && mp.path == parentMP.path && mp.color == color)
 	}
 
 	public markFolder(color: string) {
-		this.hide()
+		this.onHideNodeContextMenu()
 		this.codeMapActionsService.markFolder(this._viewModel.contextMenuBuilding, color)
 	}
 
 	public unmarkFolder() {
-		this.hide()
+		this.onHideNodeContextMenu()
 		this.codeMapActionsService.unmarkFolder(this._viewModel.contextMenuBuilding)
 	}
 
 	public focusNode() {
-		this.hide()
-		this.codeMapActionsService.focusNode(this._viewModel.contextMenuBuilding)
-	}
-
-	public hide() {
-		this.$timeout(() => {
-			this._viewModel.contextMenuBuilding = null
-		}, 0)
-	}
-
-	public showDependentEdges() {
-		this.hide()
-		this.codeMapActionsService.showDependentEdges(this._viewModel.contextMenuBuilding)
-	}
-
-	public hideDependentEdges() {
-		this.hide()
-		this.codeMapActionsService.hideDependentEdges(this._viewModel.contextMenuBuilding)
-	}
-
-	public hideAllEdges() {
-		this.hide()
-		this.codeMapActionsService.hideAllEdges()
+		this.onHideNodeContextMenu()
+		this.storeService.dispatch(focusNode(this._viewModel.contextMenuBuilding.path))
 	}
 
 	public excludeNode() {
-		this.hide()
-		this.codeMapActionsService.excludeNode(this._viewModel.contextMenuBuilding)
+		this.onHideNodeContextMenu()
+		this.storeService.dispatch(addBlacklistItem({ path: this._viewModel.contextMenuBuilding.path, type: BlacklistType.exclude }))
 	}
 
 	public nodeIsFolder() {
@@ -172,11 +156,28 @@ export class NodeContextMenuController {
 	}
 
 	public static broadcastShowEvent($rootScope, path: string, type: string, x, y) {
-		$rootScope.$broadcast("show-node-context-menu", { path: path, type: type, x: x, y: y })
+		$rootScope.$broadcast(NodeContextMenuController.SHOW_NODE_CONTEXT_MENU_EVENT, {
+			path: path,
+			type: type,
+			x: x,
+			y: y
+		})
 	}
 
 	public static broadcastHideEvent($rootScope) {
-		$rootScope.$broadcast("hide-node-context-menu")
+		$rootScope.$broadcast(NodeContextMenuController.HIDE_NODE_CONTEXT_MENU_EVENT)
+	}
+
+	public static subscribeToShowNodeContextMenu($rootScope: IRootScopeService, subscriber: ShowNodeContextMenuSubscriber) {
+		$rootScope.$on(NodeContextMenuController.SHOW_NODE_CONTEXT_MENU_EVENT, (event, data) => {
+			subscriber.onShowNodeContextMenu(data.path, data.type, data.x, data.y)
+		})
+	}
+
+	public static subscribeToHideNodeContextMenu($rootScope: IRootScopeService, subscriber: HideNodeContextMenuSubscriber) {
+		$rootScope.$on(NodeContextMenuController.HIDE_NODE_CONTEXT_MENU_EVENT, event => {
+			subscriber.onHideNodeContextMenu()
+		})
 	}
 }
 

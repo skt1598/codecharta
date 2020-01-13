@@ -2,18 +2,16 @@ import "./loadingGif.module"
 import { LoadingGifController } from "./loadingGif.component"
 import { getService, instantiateModule } from "../../../../mocks/ng.mockhelper"
 import { IRootScopeService, ITimeoutService } from "angular"
-import { LoadingGifService } from "./loadingGif.service"
+import { LoadingStatusService } from "../../state/loadingStatus.service"
 
 describe("LoadingGifController", () => {
 	let loadingGifController: LoadingGifController
 	let $rootScope: IRootScopeService
 	let $timeout: ITimeoutService
-	let loadingGifService: LoadingGifService
 
 	beforeEach(() => {
 		restartSystem()
 		rebuildController()
-		withMockedLoadingGifService()
 	})
 
 	function restartSystem() {
@@ -21,29 +19,21 @@ describe("LoadingGifController", () => {
 
 		$rootScope = getService<IRootScopeService>("$rootScope")
 		$timeout = getService<ITimeoutService>("$timeout")
-		loadingGifService = getService<LoadingGifService>("loadingGifService")
 	}
 
 	function rebuildController() {
 		loadingGifController = new LoadingGifController($rootScope, $timeout)
 	}
 
-	function withMockedLoadingGifService() {
-		loadingGifService = loadingGifController["loadingGifService"] = jest.fn().mockReturnValue({
-			updateLoadingFileFlag: jest.fn(),
-			updateLoadingMapFlag: jest.fn()
-		})()
-	}
-
 	describe("constructor", () => {
 		beforeEach(() => {
-			LoadingGifService.subscribe = jest.fn()
+			LoadingStatusService.subscribe = jest.fn()
 		})
 
-		it("should subscribe to LoadingGifService", () => {
+		it("should subscribe to LoadingStatusService", () => {
 			rebuildController()
 
-			expect(LoadingGifService.subscribe).toHaveBeenCalledWith($rootScope, loadingGifController)
+			expect(LoadingStatusService.subscribe).toHaveBeenCalledWith($rootScope, loadingGifController)
 		})
 
 		it("should set attribute isLoadingFile to true", () => {
@@ -61,13 +51,13 @@ describe("LoadingGifController", () => {
 
 	describe("onLoadingFileStatusChanged", () => {
 		it("should set isLoadingFile in viewModel", () => {
-			loadingGifController.onLoadingFileStatusChanged(true, undefined)
+			loadingGifController.onLoadingFileStatusChanged(true)
 
 			expect(loadingGifController["_viewModel"].isLoadingFile).toBe(true)
 		})
 
 		it("should set isLoadingFile in viewModel", () => {
-			loadingGifController.onLoadingFileStatusChanged(false, undefined)
+			loadingGifController.onLoadingFileStatusChanged(false)
 
 			expect(loadingGifController["_viewModel"].isLoadingFile).toBe(false)
 		})
@@ -75,13 +65,13 @@ describe("LoadingGifController", () => {
 
 	describe("onLoadingMapStatusChanged", () => {
 		it("should set isLoadingMap in viewModel", () => {
-			loadingGifController.onLoadingMapStatusChanged(true, undefined)
+			loadingGifController.onLoadingMapStatusChanged(true)
 
 			expect(loadingGifController["_viewModel"].isLoadingMap).toBe(true)
 		})
 
 		it("should set isLoadingMap in viewModel", () => {
-			loadingGifController.onLoadingMapStatusChanged(false, undefined)
+			loadingGifController.onLoadingMapStatusChanged(false)
 
 			expect(loadingGifController["_viewModel"].isLoadingMap).toBe(false)
 		})

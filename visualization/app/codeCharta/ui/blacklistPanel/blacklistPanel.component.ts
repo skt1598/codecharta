@@ -1,37 +1,49 @@
-import { SettingsService, SettingsServiceSubscriber } from "../../state/settings.service"
 import "./blacklistPanel.component.scss"
-import { CodeMapActionsService } from "../codeMap/codeMap.actions.service"
-import { Settings, BlacklistItem, BlacklistType, RecursivePartial } from "../../codeCharta.model"
+import { BlacklistItem, BlacklistType, SearchPanelMode } from "../../codeCharta.model"
 import { IRootScopeService } from "angular"
+import { SearchPanelServiceSubscriber, SearchPanelService } from "../../state/searchPanel.service"
+import { BlacklistService, BlacklistSubscriber } from "../../state/store/fileSettings/blacklist/blacklist.service"
+import { removeBlacklistItem } from "../../state/store/fileSettings/blacklist/blacklist.actions"
+import { StoreService } from "../../state/store.service"
 
-export class BlacklistPanelController implements SettingsServiceSubscriber {
+export class BlacklistPanelController implements BlacklistSubscriber, SearchPanelServiceSubscriber {
 	private _viewModel: {
-		blacklist: Array<BlacklistItem>
+		flatten: Array<BlacklistItem>
+		exclude: Array<BlacklistItem>
+		searchPanelMode: SearchPanelMode
 	} = {
-		blacklist: []
+		flatten: null,
+		exclude: null,
+		searchPanelMode: null
 	}
 
-	constructor(private codeMapActionsService: CodeMapActionsService, $rootScope: IRootScopeService) {
-		SettingsService.subscribe($rootScope, this)
+	constructor(private $rootScope: IRootScopeService, private storeService: StoreService) {
+		BlacklistService.subscribe(this.$rootScope, this)
+		SearchPanelService.subscribe(this.$rootScope, this)
 	}
 
-	public onSettingsChanged(settings: Settings, supdate: RecursivePartial<Settings>, event: angular.IAngularEvent) {
-		if (settings.fileSettings.blacklist) {
-			this._viewModel.blacklist = settings.fileSettings.blacklist
-		}
+	public onBlacklistChanged(blacklist: BlacklistItem[]) {
+		this._viewModel.flatten = blacklist.filter(x => x.type === BlacklistType.flatten)
+		this._viewModel.exclude = blacklist.filter(x => x.type === BlacklistType.exclude)
+	}
+
+	public onSearchPanelModeChanged(searchPanelMode: SearchPanelMode) {
+		this._viewModel.searchPanelMode = searchPanelMode
 	}
 
 	public removeBlacklistEntry(entry: BlacklistItem) {
-		this.codeMapActionsService.removeBlacklistEntry(entry)
-	}
-
-	public sortByExcludes(item: BlacklistItem) {
-		return item && item.type == BlacklistType.exclude ? 0 : 1
+		this.storeService.dispatch(removeBlacklistItem(entry))
 	}
 }
 
-export const blacklistPanelComponent = {
-	selector: "blacklistPanelComponent",
-	template: require("./blacklistPanel.component.html"),
+export const blacklistPanelFlattenComponent = {
+	selector: "blacklistPanelExcludeComponent",
+	template: require("./blacklistPanel.exclude.component.html"),
+	controller: BlacklistPanelController
+}
+
+export const blacklistPanelExcludeComponent = {
+	selector: "blacklistPanelFlattenComponent",
+	template: require("./blacklistPanel.flatten.component.html"),
 	controller: BlacklistPanelController
 }

@@ -1,46 +1,32 @@
-import { SettingsService } from "../../state/settings.service"
-import { CodeMapNode, BlacklistType, BlacklistItem, Edge } from "../../codeCharta.model"
-import { CodeChartaService } from "../../codeCharta.service"
-import { MarkedPackage, Settings } from "../../codeCharta.model"
-import angular from "angular"
-import { ThreeOrbitControlsService } from "./threeViewer/threeOrbitControlsService"
+import { CodeMapNode, EdgeVisibility } from "../../codeCharta.model"
+import { MarkedPackage } from "../../codeCharta.model"
+import { EdgeMetricDataService } from "../../state/edgeMetricData.service"
+import { StoreService } from "../../state/store.service"
+import { setEdges } from "../../state/store/fileSettings/edges/edges.actions"
+import { markPackage, unmarkPackage } from "../../state/store/fileSettings/markedPackages/markedPackages.actions"
 
 export class CodeMapActionsService {
-	constructor(private settingsService: SettingsService, private threeOrbitControlsService: ThreeOrbitControlsService) {}
-
-	public toggleNodeVisibility(node: CodeMapNode) {
-		if (node.visible) {
-			this.hideNode(node)
-		} else {
-			this.showNode(node)
-		}
-	}
+	constructor(private edgeMetricDataService: EdgeMetricDataService, private storeService: StoreService) {}
 
 	public markFolder(node: CodeMapNode, color: string) {
-		let s = this.settingsService.getSettings()
 		const newMP: MarkedPackage = this.getNewMarkedPackage(node.path, color)
-		const clickedMP: MarkedPackage = s.fileSettings.markedPackages.find(p => p.path === newMP.path)
-		const parentMP: MarkedPackage = this.getParentMP(newMP.path, s)
+		const clickedMP: MarkedPackage = this.storeService.getState().fileSettings.markedPackages.find(p => p.path === newMP.path)
+		const parentMP: MarkedPackage = this.getParentMP(newMP.path)
 
-		this.handleUpdatingMarkedPackages(s, newMP, clickedMP, parentMP)
-		this.settingsService.updateSettings({
-			fileSettings: {
-				markedPackages: s.fileSettings.markedPackages
-			}
-		})
+		this.handleUpdatingMarkedPackages(newMP, clickedMP, parentMP)
 	}
 
-	private handleUpdatingMarkedPackages(s: Settings, newMP: MarkedPackage, clickedMP: MarkedPackage, parentMP: MarkedPackage): void {
+	private handleUpdatingMarkedPackages(newMP: MarkedPackage, clickedMP: MarkedPackage, parentMP: MarkedPackage): void {
 		if (!clickedMP && this.packagesHaveDifferentColor(parentMP, newMP)) {
-			this.addMarkedPackage(newMP, s)
+			this.addMarkedPackage(newMP)
 		} else if (this.packagesHaveDifferentColor(clickedMP, newMP)) {
-			this.removeMarkedPackage(clickedMP, s)
+			this.removeMarkedPackage(clickedMP)
 
 			if (this.packagesHaveDifferentColor(parentMP, newMP)) {
-				this.addMarkedPackage(newMP, s)
+				this.addMarkedPackage(newMP)
 			}
 		}
-		this.removeChildrenMPWithSameColor(newMP, s)
+		this.removeChildrenMPWithSameColor(newMP)
 	}
 
 	private packagesHaveDifferentColor(mp1: MarkedPackage, mp2: MarkedPackage): boolean {
@@ -48,167 +34,83 @@ export class CodeMapActionsService {
 	}
 
 	public unmarkFolder(node: CodeMapNode) {
-		let s = this.settingsService.getSettings()
-		let clickedMP: MarkedPackage = s.fileSettings.markedPackages.find(p => p.path === node.path)
+		const clickedMP: MarkedPackage = this.storeService.getState().fileSettings.markedPackages.find(p => p.path === node.path)
 
 		if (clickedMP) {
-			this.removeMarkedPackage(clickedMP, s)
+			this.removeMarkedPackage(clickedMP)
 		} else {
-			const parentMP: MarkedPackage = this.getParentMP(node.path, s)
-			this.removeMarkedPackage(parentMP, s)
-		}
-		this.settingsService.updateSettings({
-			fileSettings: {
-				markedPackages: s.fileSettings.markedPackages
-			}
-		})
-	}
-
-	public hideNode(node: CodeMapNode) {
-		this.pushItemToBlacklist({ path: node.path, type: BlacklistType.hide })
-	}
-
-	public showNode(node: CodeMapNode) {
-		this.removeBlacklistEntry({ path: node.path, type: BlacklistType.hide })
-	}
-
-	public focusNode(node: CodeMapNode) {
-		if (node.path === CodeChartaService.ROOT_PATH) {
-			this.removeFocusedNode()
-		} else {
-			this.settingsService.updateSettings({ dynamicSettings: { focusedNodePath: node.path } })
-			this.autoFit()
+			const parentMP: MarkedPackage = this.getParentMP(node.path)
+			this.removeMarkedPackage(parentMP)
 		}
 	}
 
-	public removeFocusedNode() {
-		this.settingsService.updateSettings({ dynamicSettings: { focusedNodePath: "" } })
-		this.autoFit()
-	}
+	public updateEdgePreviews() {
+		const state = this.storeService.getState()
+		const edges = state.fileSettings.edges
+		const edgeMetric = state.dynamicSettings.edgeMetric
+		const numberOfEdgesToDisplay = state.appSettings.amountOfEdgePreviews
+		const edgePreviewNodes = this.edgeMetricDataService.getNodesWithHighestValue(edgeMetric, numberOfEdgesToDisplay)
 
-	public excludeNode(node: CodeMapNode) {
-		this.pushItemToBlacklist({ path: node.path, type: BlacklistType.exclude })
-	}
-
-	public removeBlacklistEntry(entry: BlacklistItem) {
-		this.settingsService.updateSettings({
-			fileSettings: {
-				blacklist: this.settingsService.getSettings().fileSettings.blacklist.filter(obj => !this.isEqualObjects(obj, entry))
-			}
-		})
-	}
-
-	public pushItemToBlacklist(item: BlacklistItem) {
-		const foundDuplicate = this.settingsService.getSettings().fileSettings.blacklist.filter(obj => {
-			return this.isEqualObjects(obj, item)
-		})
-		if (foundDuplicate.length === 0) {
-			this.settingsService.updateSettings({
-				fileSettings: {
-					blacklist: [...this.settingsService.getSettings().fileSettings.blacklist, item]
+		edges.forEach(edge => {
+			if (
+				(edgePreviewNodes.includes(edge.fromNodeName) || edgePreviewNodes.includes(edge.toNodeName)) &&
+				Object.keys(edge.attributes).includes(edgeMetric)
+			) {
+				edge.visible = EdgeVisibility.both
+				if (!edgePreviewNodes.includes(edge.fromNodeName)) {
+					edge.visible = EdgeVisibility.to
+				} else if (!edgePreviewNodes.includes(edge.toNodeName)) {
+					edge.visible = EdgeVisibility.from
 				}
-			})
-		}
+			} else {
+				edge.visible = EdgeVisibility.none
+			}
+		})
+
+		this.storeService.dispatch(setEdges(edges))
 	}
 
-	public showDependentEdges(node: CodeMapNode) {
-		this.changeEdgesVisibility(true, node)
-	}
-
-	public hideDependentEdges(node: CodeMapNode) {
-		this.changeEdgesVisibility(false, node)
-	}
-
-	public hideAllEdges() {
-		this.changeEdgesVisibility(false)
-	}
-
-	public amountOfDependentEdges(node: CodeMapNode) {
-		return this.settingsService.getSettings().fileSettings.edges.filter(edge => this.edgeContainsNode(edge, node)).length
-	}
-
-	public amountOfVisibleDependentEdges(node: CodeMapNode) {
-		return this.settingsService.getSettings().fileSettings.edges.filter(edge => this.edgeContainsNode(edge, node) && edge.visible)
-			.length
-	}
-
-	public isAnyEdgeVisible() {
-		return this.settingsService.getSettings().fileSettings.edges.filter(edge => edge.visible).length > 0
-	}
-
-	public getParentMP(path: string, s: Settings): MarkedPackage {
-		const sortedParentMP = s.fileSettings.markedPackages
-			.filter(p => path.includes(p.path) && p.path !== path)
+	public getParentMP(path: string): MarkedPackage {
+		const sortedParentMP = this.storeService
+			.getState()
+			.fileSettings.markedPackages.filter(p => path.includes(p.path) && p.path !== path)
 			.sort((a, b) => b.path.length - a.path.length)
 
 		return sortedParentMP.length > 0 ? sortedParentMP[0] : null
 	}
 
 	private getNewMarkedPackage(path: string, color: string): MarkedPackage {
-		let coloredPackage: MarkedPackage = {
+		return {
 			path: path,
 			color: color,
 			attributes: {}
 		}
-
-		return coloredPackage
 	}
 
-	private removeChildrenMPWithSameColor(newMP: MarkedPackage, s: Settings) {
-		const allChildrenMP: MarkedPackage[] = this.getAllChildrenMP(newMP.path, s)
+	private removeChildrenMPWithSameColor(newMP: MarkedPackage) {
+		const allChildrenMP: MarkedPackage[] = this.getAllChildrenMP(newMP.path)
 		allChildrenMP.forEach(childPackage => {
-			const parentMP = this.getParentMP(childPackage.path, s)
+			const parentMP = this.getParentMP(childPackage.path)
 			if (parentMP && parentMP.color === childPackage.color) {
-				this.removeMarkedPackage(childPackage, s)
+				this.removeMarkedPackage(childPackage)
 			}
 		})
 	}
 
-	private getAllChildrenMP(path: string, s: Settings): MarkedPackage[] {
-		return s.fileSettings.markedPackages.filter(p => p.path.includes(path) && p.path != path)
+	private getAllChildrenMP(path: string): MarkedPackage[] {
+		return this.storeService.getState().fileSettings.markedPackages.filter(p => p.path.includes(path) && p.path != path)
 	}
 
-	private addMarkedPackage(markedPackage: MarkedPackage, s: Settings) {
-		s.fileSettings.markedPackages.push(markedPackage)
-		this.settingsService.updateSettings({
-			fileSettings: {
-				markedPackages: s.fileSettings.markedPackages
-			}
-		})
+	private addMarkedPackage(markedPackage: MarkedPackage) {
+		this.storeService.getState().fileSettings.markedPackages.push(markedPackage)
+		this.storeService.dispatch(markPackage(markedPackage))
 	}
 
-	private removeMarkedPackage(markedPackage: MarkedPackage, s: Settings) {
-		const indexToRemove = s.fileSettings.markedPackages.indexOf(markedPackage)
+	private removeMarkedPackage(markedPackage: MarkedPackage) {
+		const indexToRemove = this.storeService.getState().fileSettings.markedPackages.indexOf(markedPackage)
 		if (indexToRemove > -1) {
-			s.fileSettings.markedPackages.splice(indexToRemove, 1)
+			this.storeService.getState().fileSettings.markedPackages.splice(indexToRemove, 1)
 		}
-	}
-
-	private changeEdgesVisibility(visibility: boolean, node: CodeMapNode = null) {
-		let edges = this.settingsService.getSettings().fileSettings.edges
-		if (edges) {
-			edges.forEach(edge => {
-				if (node === null || this.edgeContainsNode(edge, node)) {
-					edge.visible = visibility
-				}
-			})
-			this.settingsService.updateSettings({
-				fileSettings: {
-					edges: edges
-				}
-			})
-		}
-	}
-
-	private edgeContainsNode(edge: Edge, node: CodeMapNode): boolean {
-		return node.path == edge.fromNodeName || node.path == edge.toNodeName
-	}
-
-	private isEqualObjects(obj1, obj2): boolean {
-		return JSON.stringify(angular.toJson(obj1)) === JSON.stringify(angular.toJson(obj2))
-	}
-
-	private autoFit() {
-		this.threeOrbitControlsService.autoFitTo()
+		this.storeService.dispatch(unmarkPackage(markedPackage))
 	}
 }

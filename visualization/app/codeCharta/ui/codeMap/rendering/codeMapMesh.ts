@@ -1,28 +1,10 @@
-import * as THREE from "three"
-
 import { CodeMapShaderStrings } from "./codeMapShaderStrings"
 import { BuildResult, GeometryGenerator } from "./geometryGenerator"
 import { CodeMapGeometricDescription, IntersectionResult } from "./codeMapGeometricDescription"
 import { CodeMapBuilding } from "./codeMapBuilding"
-import { Node, Settings } from "../../../codeCharta.model"
-import { ColorConverter } from "../../../util/colorConverter"
-
-interface ThreeUniform {
-	type: string
-	value: any
-}
-
-interface CodeMapLightingParams {
-	numHighlights: ThreeUniform
-	numSelections: ThreeUniform
-	highlightColor: ThreeUniform
-	highlightedIndices: ThreeUniform
-	selectedColor: ThreeUniform
-	selectedIndices: ThreeUniform
-	emissive: ThreeUniform
-	deltaColorPositive: ThreeUniform
-	deltaColorNegative: ThreeUniform
-}
+import { Node, State } from "../../../codeCharta.model"
+import { Camera, Mesh, Ray, ShaderMaterial, UniformsLib, UniformsUtils, Vector3 } from "three"
+import { TreeMapHelper } from "../../../util/treeMapHelper"
 
 export interface MousePos {
 	x: number
@@ -30,128 +12,171 @@ export interface MousePos {
 }
 
 export class CodeMapMesh {
-	public settings: Settings
-	private threeMesh: THREE.Mesh
-	private material: THREE.ShaderMaterial
+	public static readonly NUM_OF_COLOR_VECTOR_FIELDS = 3
+	public static readonly NUM_OF_VERTICES = 24
+	public static readonly LIGHTNESS_INCREASE = -10
+	public static readonly LIGHTNESS_DECREASE = 20
+
+	private threeMesh: Mesh
+	private material: ShaderMaterial
 	private geomGen: GeometryGenerator
 	private mapGeomDesc: CodeMapGeometricDescription
 
-	private nodes: Node[]
-
-	private currentlyHighlighted: CodeMapBuilding[] | null
-	private currentlySelected: CodeMapBuilding[] | null
-
-	private lightingParams: CodeMapLightingParams = null
-
-	constructor(nodes: Node[], settings: Settings, isDeltaState: boolean) {
-		this.nodes = nodes
-		this.initLightingParams(settings)
-		this.initMaterial(settings)
+	constructor(nodes: Node[], state: State, isDeltaState: boolean) {
+		this.initMaterial()
 
 		this.geomGen = new GeometryGenerator()
-		let buildRes: BuildResult = this.geomGen.build(this.nodes, this.material, settings, isDeltaState)
+		const buildRes: BuildResult = this.geomGen.build(nodes, this.material, state, isDeltaState)
 
 		this.threeMesh = buildRes.mesh
 		this.mapGeomDesc = buildRes.desc
-		this.settings = settings
+
+		this.initDeltaColorsOnMesh(state)
 	}
 
-	public getThreeMesh(): THREE.Mesh {
+	private initDeltaColorsOnMesh(state: State) {
+		if (this.mapGeomDesc.buildings[0].node.deltas) {
+			this.mapGeomDesc.buildings.forEach(building => {
+				this.setNewDeltaColor(building, state)
+				this.setVertexColor(building.id, building.getColorVector(), building.getDeltaColorVector())
+			})
+			this.updateVertices()
+		}
+	}
+
+	public getThreeMesh(): Mesh {
 		return this.threeMesh
 	}
 
-	public setHighlighted(buildings: CodeMapBuilding[], color?: string) {
-		//noinspection TypeScriptUnresolvedVariable
-		this.material.uniforms.highlightedIndices.value = buildings.map((b: CodeMapBuilding) => {
-			return b.id
-		})
-		//noinspection TypeScriptUnresolvedVariable
-		this.material.uniforms.numHighlights.value = buildings.length
-
-		if (color) {
-			this.lightingParams.highlightColor.value = ColorConverter.colorToVector3(color)
-		}
-
-		this.currentlyHighlighted = buildings
+	public selectBuilding(building: CodeMapBuilding, selected: CodeMapBuilding, color: string) {
+		building.setColor(color)
+		this.setVertexColor(building.id, building.getColorVector(), building.getDefaultDeltaColorVector())
+		this.updateVertices()
 	}
 
-	public setSelected(buildings: CodeMapBuilding[], color?: string) {
-		//noinspection TypeScriptUnresolvedVariable
-		this.material.uniforms.selectedIndices.value = buildings.map((b: CodeMapBuilding) => {
-			return b.id
-		})
-		//noinspection TypeScriptUnresolvedVariable
-		this.material.uniforms.numSelections.value = buildings.length
-
-		if (color) {
-			this.lightingParams.selectedColor.value = ColorConverter.colorToVector3(color)
-		}
-
-		this.currentlySelected = buildings
-	}
-
-	public getCurrentlyHighlighted(): CodeMapBuilding[] | null {
-		return this.currentlyHighlighted
-	}
-
-	public getCurrentlySelected(): CodeMapBuilding[] | null {
-		return this.currentlySelected
-	}
-
-	public clearHighlight() {
-		//noinspection TypeScriptUnresolvedVariable
-		this.material.uniforms.numHighlights.value = 0.0
-		this.currentlyHighlighted = null
-	}
-
-	public clearSelected() {
-		//noinspection TypeScriptUnresolvedVariable
-		this.material.uniforms.numSelections.value = 0.0
-		this.currentlySelected = null
+	public clearSelection(selected: CodeMapBuilding) {
+		selected.resetColor()
+		this.setVertexColor(selected.id, selected.getDefaultColorVector(), selected.getDefaultDeltaColorVector())
+		this.updateVertices()
 	}
 
 	public getMeshDescription(): CodeMapGeometricDescription {
 		return this.mapGeomDesc
 	}
 
-	public checkMouseRayMeshIntersection(mouse: MousePos, camera: THREE.Camera): IntersectionResult {
-		let ray: THREE.Ray = this.calculatePickingRay(mouse, camera)
+	public getBuildingByPath(path: string): CodeMapBuilding {
+		return this.mapGeomDesc.getBuildingByPath(path)
+	}
+
+	public checkMouseRayMeshIntersection(mouse: MousePos, camera: Camera): IntersectionResult {
+		const ray: Ray = this.calculatePickingRay(mouse, camera)
 		return this.getMeshDescription().intersect(ray)
 	}
 
-	public setScale(x: number, y: number, z: number) {
-		this.mapGeomDesc.setScales(new THREE.Vector3(x, y, z))
+	public setScale(scale: Vector3) {
+		this.mapGeomDesc.setScales(scale)
 	}
 
-	private initLightingParams(settings: Settings) {
-		this.lightingParams = {
-			numHighlights: { type: "f", value: 0.0 },
-			highlightColor: { type: "v3", value: ColorConverter.colorToVector3("#666666") },
-			highlightedIndices: { type: "fv1", value: [] },
-
-			numSelections: { type: "f", value: 0.0 },
-			selectedColor: { type: "f", value: ColorConverter.colorToVector3(settings.appSettings.mapColors.selected) },
-			selectedIndices: { type: "fv1", value: [] },
-
-			deltaColorPositive: { type: "v3", value: ColorConverter.colorToVector3(settings.appSettings.mapColors.positiveDelta) },
-			deltaColorNegative: { type: "v3", value: ColorConverter.colorToVector3(settings.appSettings.mapColors.negativeDelta) },
-
-			emissive: { type: "v3", value: new THREE.Vector3(0.0, 0.0, 0.0) }
-		}
+	public highlightBuilding(highlightedBuildings: CodeMapBuilding[], selected: CodeMapBuilding, state: State) {
+		const highlightBuildingMap = TreeMapHelper.buildingArrayToMap(highlightedBuildings)
+		this.mapGeomDesc.buildings.forEach(building => {
+			if (!this.isBuildingSelected(selected, building)) {
+				if (highlightBuildingMap.get(building.id)) {
+					building.decreaseLightness(CodeMapMesh.LIGHTNESS_INCREASE)
+				} else {
+					this.presentationModeHighlight(highlightedBuildings, building, state)
+				}
+				this.setVertexColor(building.id, building.getColorVector(), building.getDeltaColorVector())
+			}
+		})
+		this.updateVertices()
 	}
 
-	private initMaterial(settings: Settings): void {
-		if (settings.appSettings.deltaColorFlipped) {
-			this.setDeltaColorsFlipped(settings)
+	private presentationModeHighlight(highlighted: CodeMapBuilding[], building: CodeMapBuilding, state: State) {
+		const mapSize = state.treeMap.mapSize
+		if (state.appSettings.isPresentationMode && highlighted.length === 1) {
+			const distance = highlighted[0].getCenterPoint(mapSize).distanceTo(building.getCenterPoint(mapSize))
+			this.decreaseLightnessByDistance(building, distance)
 		} else {
-			this.setDeltaColorsUnflipped(settings)
+			building.decreaseLightness(CodeMapMesh.LIGHTNESS_DECREASE)
 		}
+	}
 
-		let uniforms = THREE.UniformsUtils.merge([THREE.UniformsLib["lights"], this.lightingParams])
+	public clearHighlight(selected: CodeMapBuilding) {
+		for (let i = 0; i < this.mapGeomDesc.buildings.length; i++) {
+			const currentBuilding: CodeMapBuilding = this.mapGeomDesc.buildings[i]
+			if (!this.isBuildingSelected(selected, currentBuilding)) {
+				this.setVertexColor(
+					currentBuilding.id,
+					currentBuilding.getDefaultColorVector(),
+					currentBuilding.getDefaultDeltaColorVector()
+				)
+			}
+		}
+		this.updateVertices()
+	}
 
-		let shaderCode: CodeMapShaderStrings = new CodeMapShaderStrings()
+	private setNewDeltaColor(building: CodeMapBuilding, state: State) {
+		if (building.node.deltas) {
+			const deltaValue = building.node.deltas[state.dynamicSettings.heightMetric]
 
-		this.material = new THREE.ShaderMaterial({
+			if (deltaValue > 0) {
+				building.setDeltaColor(state.appSettings.mapColors.positiveDelta)
+			}
+
+			if (deltaValue < 0) {
+				building.setDeltaColor(state.appSettings.mapColors.negativeDelta)
+			}
+		}
+	}
+
+	private isBuildingSelected(selected: CodeMapBuilding, building: CodeMapBuilding) {
+		return selected && building.equals(selected)
+	}
+
+	private decreaseLightnessByDistance(building: CodeMapBuilding, distance: number) {
+		if (distance > 800) {
+			building.decreaseLightness(40)
+		} else if (distance > 400) {
+			building.decreaseLightness(30)
+		} else if (distance > 250) {
+			building.decreaseLightness(20)
+		} else if (distance > 100) {
+			building.decreaseLightness(15)
+		} else if (distance > 50) {
+			building.decreaseLightness(10)
+		}
+	}
+
+	private setVertexColor(id: number, newColorVector: Vector3, newDeltaColorVector) {
+		const numberOfColorFieldsPerBuilding = CodeMapMesh.NUM_OF_COLOR_VECTOR_FIELDS * CodeMapMesh.NUM_OF_VERTICES
+		const positionOfFirstColorEntry = id * numberOfColorFieldsPerBuilding
+		for (
+			let j = positionOfFirstColorEntry;
+			j < positionOfFirstColorEntry + numberOfColorFieldsPerBuilding;
+			j += CodeMapMesh.NUM_OF_COLOR_VECTOR_FIELDS
+		) {
+			this.threeMesh.geometry["attributes"].color.array[j] = newColorVector.x
+			this.threeMesh.geometry["attributes"].color.array[j + 1] = newColorVector.y
+			this.threeMesh.geometry["attributes"].color.array[j + 2] = newColorVector.z
+
+			this.threeMesh.geometry["attributes"].deltaColor.array[j] = newDeltaColorVector.x
+			this.threeMesh.geometry["attributes"].deltaColor.array[j + 1] = newDeltaColorVector.y
+			this.threeMesh.geometry["attributes"].deltaColor.array[j + 2] = newDeltaColorVector.z
+		}
+	}
+
+	private updateVertices() {
+		this.threeMesh.geometry["attributes"].color.needsUpdate = true
+		this.threeMesh.geometry["attributes"].deltaColor.needsUpdate = true
+	}
+
+	private initMaterial(): void {
+		const uniforms = UniformsUtils.merge([UniformsLib["lights"]])
+
+		const shaderCode: CodeMapShaderStrings = new CodeMapShaderStrings()
+
+		this.material = new ShaderMaterial({
 			vertexShader: shaderCode.vertexShaderCode,
 			fragmentShader: shaderCode.fragmentShaderCode,
 			lights: true,
@@ -159,30 +184,8 @@ export class CodeMapMesh {
 		})
 	}
 
-	private setDeltaColorsFlipped(settings: Settings) {
-		this.lightingParams.deltaColorPositive = {
-			type: "v3",
-			value: ColorConverter.colorToVector3(settings.appSettings.mapColors.negativeDelta)
-		}
-		this.lightingParams.deltaColorNegative = {
-			type: "v3",
-			value: ColorConverter.colorToVector3(settings.appSettings.mapColors.positiveDelta)
-		}
-	}
-
-	private setDeltaColorsUnflipped(settings: Settings) {
-		this.lightingParams.deltaColorPositive = {
-			type: "v3",
-			value: ColorConverter.colorToVector3(settings.appSettings.mapColors.positiveDelta)
-		}
-		this.lightingParams.deltaColorNegative = {
-			type: "v3",
-			value: ColorConverter.colorToVector3(settings.appSettings.mapColors.negativeDelta)
-		}
-	}
-
-	private calculatePickingRay(mouse: MousePos, camera: THREE.Camera): THREE.Ray {
-		let ray: THREE.Ray = new THREE.Ray()
+	private calculatePickingRay(mouse: MousePos, camera: Camera): Ray {
+		const ray: Ray = new Ray()
 		ray.origin.setFromMatrixPosition(camera.matrixWorld)
 		ray.direction
 			.set(mouse.x, mouse.y, 0.5)

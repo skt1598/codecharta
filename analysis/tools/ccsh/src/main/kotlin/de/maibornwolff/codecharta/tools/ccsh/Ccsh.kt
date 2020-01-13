@@ -32,6 +32,7 @@ package de.maibornwolff.codecharta.tools.ccsh
 import de.maibornwolff.codecharta.exporter.csv.CSVExporter
 import de.maibornwolff.codecharta.filter.edgefilter.EdgeFilter
 import de.maibornwolff.codecharta.filter.mergefilter.MergeFilter
+import de.maibornwolff.codecharta.filter.structuremodifier.StructureModifier
 import de.maibornwolff.codecharta.importer.codemaat.CodeMaatImporter
 import de.maibornwolff.codecharta.importer.crococosmo.CrococosmoImporter
 import de.maibornwolff.codecharta.importer.csv.CSVImporter
@@ -40,6 +41,7 @@ import de.maibornwolff.codecharta.importer.jasome.JasomeImporter
 import de.maibornwolff.codecharta.importer.scmlogparser.SCMLogParser
 import de.maibornwolff.codecharta.importer.sonar.SonarImporterMain
 import de.maibornwolff.codecharta.importer.sourcecodeparser.SourceCodeParserMain
+import de.maibornwolff.codecharta.importer.tokeiimporter.TokeiImporter
 import de.maibornwolff.codecharta.importer.understand.UnderstandImporter
 import de.maibornwolff.codecharta.tools.validation.ValidationTool
 import picocli.CommandLine
@@ -52,6 +54,7 @@ import java.util.concurrent.Callable
             ValidationTool::class,
             MergeFilter::class,
             EdgeFilter::class,
+            StructureModifier::class,
             CSVImporter::class,
             SonarImporterMain::class,
             SourceMonitorImporter::class,
@@ -62,7 +65,8 @@ import java.util.concurrent.Callable
             SourceCodeParserMain::class,
             UnderstandImporter::class,
             CodeMaatImporter::class,
-            JasomeImporter::class
+            JasomeImporter::class,
+            TokeiImporter::class
         ],
         versionProvider = Ccsh.ManifestVersionProvider::class,
         footer = ["Copyright(c) 2018, MaibornWolff GmbH"]

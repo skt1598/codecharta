@@ -1,11 +1,13 @@
 import { FileValidator } from "./util/fileValidator"
-import { CCFile, NameDataPair } from "./codeCharta.model"
+import { AttributeTypes, CCFile, NameDataPair, BlacklistType, BlacklistItem } from "./codeCharta.model"
 import { FileStateService } from "./state/fileState.service"
+import _ from "lodash"
+import { NodeDecorator } from "./util/nodeDecorator"
 
 export class CodeChartaService {
 	public static ROOT_NAME = "root"
 	public static ROOT_PATH = "/" + CodeChartaService.ROOT_NAME
-	public static SELECTOR = "codeChartaService"
+	public static readonly CC_FILE_EXTENSION = ".cc.json"
 
 	constructor(private fileStateService: FileStateService) {}
 
@@ -14,7 +16,8 @@ export class CodeChartaService {
 			nameDataPairs.forEach((nameDataPair: NameDataPair) => {
 				const errors = FileValidator.validate(nameDataPair.content)
 				if (errors.length === 0) {
-					const ccFile = this.getCCFile(nameDataPair.fileName, nameDataPair.content)
+					let ccFile = this.getCCFile(nameDataPair.fileName, nameDataPair.content)
+					ccFile = NodeDecorator.preDecorateFile(ccFile)
 					this.fileStateService.addFile(ccFile)
 				} else {
 					reject(errors)
@@ -36,12 +39,45 @@ export class CodeChartaService {
 			settings: {
 				fileSettings: {
 					edges: fileContent.edges || [],
-					attributeTypes: fileContent.attributeTypes || {},
-					blacklist: fileContent.blacklist || [],
+					attributeTypes: this.getAttributeTypes(fileContent.attributeTypes),
+					blacklist: this.potentiallyUpdateBlacklistTypes(fileContent.blacklist || []),
 					markedPackages: []
 				}
 			},
 			map: fileContent.nodes[0]
 		}
+	}
+
+	private getAttributeTypes(attributeTypes: AttributeTypes): AttributeTypes {
+		let newAttributeTypes: any = {}
+
+		if (_.isEmpty(attributeTypes) || !attributeTypes) {
+			return {
+				nodes: [],
+				edges: []
+			}
+		} else {
+			if (!attributeTypes.nodes) {
+				newAttributeTypes.nodes = []
+			} else {
+				newAttributeTypes.nodes = attributeTypes.nodes
+			}
+
+			if (!attributeTypes.edges) {
+				newAttributeTypes.edges = []
+			} else {
+				newAttributeTypes.edges = attributeTypes.edges
+			}
+		}
+		return newAttributeTypes
+	}
+
+	private potentiallyUpdateBlacklistTypes(blacklist): BlacklistItem[] {
+		blacklist.forEach(x => {
+			if (x.type === "hide") {
+				x.type = BlacklistType.flatten
+			}
+		})
+		return blacklist
 	}
 }

@@ -1,10 +1,10 @@
 import * as THREE from "three"
-import { Node, Settings } from "../../../codeCharta.model"
+import { Node, State } from "../../../codeCharta.model"
 import { CodeMapGeometricDescription } from "./codeMapGeometricDescription"
 import { CodeMapBuilding } from "./codeMapBuilding"
 import { IntermediateVertexData } from "./intermediateVertexData"
 import { BoxGeometryGenerationHelper } from "./boxGeometryGenerationHelper"
-import { ColorConverter } from "../../../util/colorConverter"
+import { ColorConverter } from "../../../util/color/colorConverter"
 
 export interface BoxMeasures {
 	x: number
@@ -25,9 +25,9 @@ export class GeometryGenerator {
 
 	private floorGradient: string[]
 
-	public build(nodes: Node[], material: THREE.Material, settings: Settings, isDeltaState: boolean): BuildResult {
+	public build(nodes: Node[], material: THREE.Material, state: State, isDeltaState: boolean): BuildResult {
 		let data: IntermediateVertexData = new IntermediateVertexData()
-		let desc: CodeMapGeometricDescription = new CodeMapGeometricDescription(settings.treeMapSettings.mapSize)
+		let desc: CodeMapGeometricDescription = new CodeMapGeometricDescription(state.treeMap.mapSize)
 
 		this.floorGradient = ColorConverter.gradient("#333333", "#DDDDDD", this.getMaxNodeDepth(nodes))
 
@@ -37,7 +37,7 @@ export class GeometryGenerator {
 			if (!n.isLeaf) {
 				this.addFloor(data, n, i, desc)
 			} else {
-				this.addBuilding(data, n, i, desc, settings, isDeltaState)
+				this.addBuilding(data, n, i, desc, state, isDeltaState)
 			}
 		}
 
@@ -104,17 +104,15 @@ export class GeometryGenerator {
 		n: Node,
 		idx: number,
 		desc: CodeMapGeometricDescription,
-		settings: Settings,
+		state: State,
 		isDeltaState: boolean
 	): void {
 		let measures: BoxMeasures = this.mapNodeToLocalBox(n)
 		measures.height = this.ensureMinHeightIfUnlessDeltaNegative(n.height, n.heightDelta)
 
-		let color: string = this.estimateColorForBuilding(n, settings, isDeltaState)
-
 		let renderDelta: number = 0.0
 
-		if (isDeltaState && n.deltas && n.deltas[settings.dynamicSettings.heightMetric] && n.heightDelta) {
+		if (isDeltaState && n.deltas && n.deltas[state.dynamicSettings.heightMetric] && n.heightDelta) {
 			renderDelta = n.heightDelta //set the transformed render delta
 
 			if (renderDelta < 0) {
@@ -130,36 +128,11 @@ export class GeometryGenerator {
 					new THREE.Vector3(measures.x + measures.width, measures.y + measures.height, measures.z + measures.depth)
 				),
 				n,
-				color
+				n.color
 			)
 		)
 
-		BoxGeometryGenerationHelper.addBoxToVertexData(data, measures, color, idx, renderDelta)
-	}
-
-	private estimateColorForBuilding(n: Node, s: Settings, isDeltaState: boolean): string {
-		let color: string = s.appSettings.mapColors.defaultC
-
-		let mapColorPositive = s.appSettings.whiteColorBuildings ? s.appSettings.mapColors.lightGrey : s.appSettings.mapColors.positive
-		if (!isDeltaState) {
-			const val: number = n.attributes[s.dynamicSettings.colorMetric]
-
-			if (val === undefined || val === null) {
-				color = s.appSettings.mapColors.base
-			} else if (n.flat) {
-				color = s.appSettings.mapColors.flat
-			} else if (val < s.dynamicSettings.neutralColorRange.from) {
-				color = s.dynamicSettings.neutralColorRange.flipped ? s.appSettings.mapColors.negative : mapColorPositive
-			} else if (val > s.dynamicSettings.neutralColorRange.to) {
-				color = s.dynamicSettings.neutralColorRange.flipped ? mapColorPositive : s.appSettings.mapColors.negative
-			} else {
-				color = s.appSettings.mapColors.neutral
-			}
-		} else {
-			color = s.appSettings.mapColors.base
-		}
-
-		return color
+		BoxGeometryGenerationHelper.addBoxToVertexData(data, measures, n.color, idx, renderDelta)
 	}
 
 	private buildMeshFromIntermediateVertexData(data: IntermediateVertexData, material: THREE.Material): THREE.Mesh {
@@ -171,6 +144,7 @@ export class GeometryGenerator {
 		let normals: Float32Array = new Float32Array(numVertices * dimension)
 		let uvs: Float32Array = new Float32Array(numVertices * uvDimension)
 		let colors: Float32Array = new Float32Array(numVertices * dimension)
+		let deltaColors: Float32Array = new Float32Array(numVertices * dimension)
 		let ids: Float32Array = new Float32Array(numVertices)
 		let deltas: Float32Array = new Float32Array(numVertices)
 
@@ -192,6 +166,10 @@ export class GeometryGenerator {
 			colors[i * dimension + 1] = color.y
 			colors[i * dimension + 2] = color.z
 
+			deltaColors[i * dimension + 0] = color.x
+			deltaColors[i * dimension + 1] = color.y
+			deltaColors[i * dimension + 2] = color.z
+
 			ids[i] = data.subGeometryIdx[i]
 			deltas[i] = data.deltas[i]
 		}
@@ -208,6 +186,7 @@ export class GeometryGenerator {
 		geometry.addAttribute("normal", new THREE.BufferAttribute(normals, dimension))
 		geometry.addAttribute("uv", new THREE.BufferAttribute(uvs, uvDimension))
 		geometry.addAttribute("color", new THREE.BufferAttribute(colors, dimension))
+		geometry.addAttribute("deltaColor", new THREE.BufferAttribute(deltaColors, dimension))
 		geometry.addAttribute("subGeomIdx", new THREE.BufferAttribute(ids, 1))
 		geometry.addAttribute("delta", new THREE.BufferAttribute(deltas, 1))
 

@@ -1,28 +1,26 @@
 "use strict"
 import * as d3 from "d3"
 import { HierarchyNode } from "d3"
-import { BlacklistItem, BlacklistType, CCFile, CodeMapNode, MetricData } from "../codeCharta.model"
+import { BlacklistItem, BlacklistType, CCFile, CodeMapNode, MetricData, FileMeta, EdgeMetricCount, KeyValuePair } from "../codeCharta.model"
 import { CodeMapHelper } from "./codeMapHelper"
 import _ from "lodash"
 
 export class NodeDecorator {
-	public static decorateFile(file: CCFile, blacklist: BlacklistItem[], metricData: MetricData[]): CCFile {
-		let decoratedFile: CCFile = _.cloneDeep(file)
-		this.decorateMapWithMissingObjects(decoratedFile)
-		this.decorateMapWithCompactMiddlePackages(decoratedFile)
-		this.decorateLeavesWithMissingMetrics(decoratedFile, metricData)
-		this.decorateParentNodesWithSumAttributesOfChildren(decoratedFile, blacklist, metricData)
-		return decoratedFile
+	public static decorateMap(map: CodeMapNode, fileMeta: FileMeta, metricData: MetricData[]): CodeMapNode {
+		let decoratedMap: CodeMapNode = _.cloneDeep(map)
+		this.decorateMapWithMissingObjects(decoratedMap, fileMeta)
+		this.decorateMapWithCompactMiddlePackages(decoratedMap)
+		this.decorateLeavesWithMissingMetrics(decoratedMap, metricData)
+		return decoratedMap
 	}
 
 	public static preDecorateFile(file: CCFile): CCFile {
-		// TODO: predecorate origin as well? so in multiple mode the files keep its original origin attribute
 		let decoratedFile: CCFile = _.cloneDeep(file)
 		this.decorateMapWithPathAttribute(decoratedFile)
 		return decoratedFile
 	}
 
-	private static decorateMapWithCompactMiddlePackages(file: CCFile) {
+	private static decorateMapWithCompactMiddlePackages(map: CodeMapNode) {
 		const isEmptyMiddlePackage = current => {
 			return (
 				current &&
@@ -43,6 +41,7 @@ export class NodeDecorator {
 					current.link = child.link
 				}
 				current.attributes = child.attributes
+				current.edgeAttributes = child.edgeAttributes
 				current.deltas = child.deltas
 				rec(current)
 			} else if (current && current.children && current.children.length > 1) {
@@ -52,8 +51,8 @@ export class NodeDecorator {
 			}
 		}
 
-		if (file && file.map) {
-			rec(file.map)
+		if (map) {
+			rec(map)
 		}
 	}
 
@@ -72,21 +71,21 @@ export class NodeDecorator {
 		return file
 	}
 
-	private static decorateMapWithMissingObjects(file: CCFile) {
-		if (file && file.map) {
-			let root = d3.hierarchy<CodeMapNode>(file.map)
+	private static decorateMapWithMissingObjects(map: CodeMapNode, fileMeta: FileMeta) {
+		if (map) {
+			let root = d3.hierarchy<CodeMapNode>(map)
 			root.each(node => {
 				node.data.visible = true
-				node.data.origin = file.fileMeta.fileName
 				node.data.attributes = !node.data.attributes ? {} : node.data.attributes
+				node.data.edgeAttributes = !node.data.edgeAttributes ? {} : node.data.edgeAttributes
 				Object.assign(node.data.attributes, { unary: 1 })
 			})
 		}
 	}
 
-	private static decorateLeavesWithMissingMetrics(file: CCFile, metricData: MetricData[]) {
-		if (file && file.map && metricData) {
-			let root = d3.hierarchy<CodeMapNode>(file.map)
+	private static decorateLeavesWithMissingMetrics(map: CodeMapNode, metricData: MetricData[]) {
+		if (map && metricData) {
+			let root = d3.hierarchy<CodeMapNode>(map)
 			root.leaves().forEach(node => {
 				metricData.forEach(metric => {
 					if (!node.data.attributes.hasOwnProperty(metric.name)) {
@@ -97,36 +96,75 @@ export class NodeDecorator {
 		}
 	}
 
-	private static decorateParentNodesWithSumAttributesOfChildren(file: CCFile, blacklist: BlacklistItem[], metricData: MetricData[]) {
-		if (file && file.map) {
-			let root = d3.hierarchy<CodeMapNode>(file.map)
+	public static decorateParentNodesWithSumAttributes(
+		map: CodeMapNode,
+		blacklist: BlacklistItem[],
+		metricData: MetricData[],
+		edgeMetricData: MetricData[],
+		isDeltaState: boolean
+	) {
+		if (map) {
+			let root = d3.hierarchy<CodeMapNode>(map)
 			root.each((node: HierarchyNode<CodeMapNode>) => {
-				this.decorateNodeWithChildrenSumMetrics(node, blacklist, metricData)
+				const leaves: HierarchyNode<CodeMapNode>[] = node
+					.leaves()
+					.filter(x => !CodeMapHelper.isBlacklisted(x.data, blacklist, BlacklistType.exclude))
+				this.decorateNodeWithChildrenSumMetrics(leaves, node, metricData, isDeltaState)
+				this.decorateNodeWithChildrenSumEdgeMetrics(leaves, node, edgeMetricData)
 			})
 		}
+		return map
 	}
 
 	private static decorateNodeWithChildrenSumMetrics(
+		leaves: HierarchyNode<CodeMapNode>[],
 		node: HierarchyNode<CodeMapNode>,
-		blacklist: BlacklistItem[],
-		metricData: MetricData[]
+		metricData: MetricData[],
+		isDeltaState: boolean
 	) {
-		const leaves = node.leaves().filter(x => !CodeMapHelper.isBlacklisted(x.data, blacklist, BlacklistType.exclude))
-
 		metricData.forEach(metric => {
 			if (node.data.children && node.data.children.length > 0) {
-				node.data.attributes[metric.name] = this.getMetricSumOfLeaves(leaves, metric.name)
+				node.data.attributes[metric.name] = this.getMetricSumOfLeaves(leaves.map(x => x.data.attributes), metric.name)
+				if (isDeltaState) {
+					node.data.deltas[metric.name] = this.getMetricSumOfLeaves(leaves.map(x => x.data.deltas), metric.name)
+				}
 			}
 		})
 	}
 
-	private static getMetricSumOfLeaves(leaves: HierarchyNode<CodeMapNode>[], metric: string): number {
-		const metricValues = leaves.map(x => x.data.attributes[metric])
+	private static decorateNodeWithChildrenSumEdgeMetrics(
+		leaves: HierarchyNode<CodeMapNode>[],
+		node: HierarchyNode<CodeMapNode>,
+		edgeMetricData: MetricData[]
+	) {
+		edgeMetricData.forEach(edgeMetric => {
+			if (node.data.children && node.data.children.length > 0) {
+				node.data.edgeAttributes[edgeMetric.name] = this.getEdgeMetricSumOfLeaves(leaves, edgeMetric.name)
+			}
+		})
+	}
+
+	private static getMetricSumOfLeaves(metrics: KeyValuePair[], metricName: string): number {
+		const metricValues: number[] = metrics.map(x => x[metricName]).filter(x => !!x)
 
 		if (metricValues.length > 0) {
 			return metricValues.reduce((partialSum, a) => partialSum + a)
 		}
-
 		return 0
+	}
+
+	private static getEdgeMetricSumOfLeaves(leaves: HierarchyNode<CodeMapNode>[], metricName: string): EdgeMetricCount {
+		const metricValues: EdgeMetricCount[] = leaves.map(x => x.data.edgeAttributes[metricName]).filter(x => !!x)
+
+		if (metricValues.length > 0) {
+			const sum = { incoming: 0, outgoing: 0 }
+			metricValues.forEach(element => {
+				sum.incoming += element.incoming
+				sum.outgoing += element.outgoing
+			})
+			return sum
+		}
+
+		return { incoming: 0, outgoing: 0 }
 	}
 }

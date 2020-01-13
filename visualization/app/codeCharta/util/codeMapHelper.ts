@@ -1,7 +1,6 @@
 import { hierarchy } from "d3-hierarchy"
 import { MarkedPackage } from "../codeCharta.model"
 import ignore from "ignore"
-import * as path from "path"
 import { CodeMapNode, BlacklistItem, BlacklistType } from "../codeCharta.model"
 
 export class CodeMapHelper {
@@ -14,22 +13,27 @@ export class CodeMapHelper {
 	}
 
 	public static getCodeMapNodeFromPath(path: string, nodeType: string, root: CodeMapNode): CodeMapNode {
-		let res = null
+		const matchingNode = hierarchy<CodeMapNode>(root)
+			.descendants()
+			.find(node => node.data.path === path && node.data.type === nodeType)
+		return matchingNode ? matchingNode.data : null
+	}
 
-		if (path === root.path) {
-			return root
-		}
-
-		hierarchy<CodeMapNode>(root).each(hierarchyNode => {
-			if (hierarchyNode.data.path === path && hierarchyNode.data.type === nodeType) {
-				res = hierarchyNode.data
-			}
-		})
-		return res
+	public static getAllPaths(node: CodeMapNode): Array<String> {
+		return hierarchy<CodeMapNode>(node)
+			.descendants()
+			.map(node => node.data.path)
 	}
 
 	public static transformPath(toTransform: string): string {
-		return path.relative("/", toTransform)
+		let removeNumberOfCharactersFromStart = 0
+
+		if (toTransform.startsWith("./")) {
+			removeNumberOfCharactersFromStart = 2
+		} else if (toTransform.startsWith("/")) {
+			removeNumberOfCharactersFromStart = 1
+		}
+		return toTransform.substring(removeNumberOfCharactersFromStart)
 	}
 
 	public static getNodesByGitignorePath(nodes: Array<CodeMapNode>, gitignorePath: string): CodeMapNode[] {
@@ -49,26 +53,41 @@ export class CodeMapHelper {
 		}
 	}
 
+	public static isPathHiddenOrExcluded(path: string, blacklist: Array<BlacklistItem>): boolean {
+		return (
+			CodeMapHelper.isPathBlacklisted(path, blacklist, BlacklistType.exclude) ||
+			CodeMapHelper.isPathBlacklisted(path, blacklist, BlacklistType.flatten)
+		)
+	}
+
 	public static isBlacklisted(node: CodeMapNode, blacklist: Array<BlacklistItem>, type: BlacklistType): boolean {
+		return CodeMapHelper.isPathBlacklisted(node.path, blacklist, type)
+	}
+
+	public static isPathBlacklisted(path: string, blacklist: Array<BlacklistItem>, type: BlacklistType): boolean {
 		if (blacklist.length === 0) {
 			return false
 		}
 
 		const ig = ignore().add(blacklist.filter(b => b.type === type).map(ex => CodeMapHelper.transformPath(ex.path)))
-		return ig.ignores(CodeMapHelper.transformPath(node.path))
+		return ig.ignores(CodeMapHelper.transformPath(path))
 	}
 
 	public static getMarkingColor(node: CodeMapNode, markedPackages: MarkedPackage[]): string {
-		let markingColor = null
+		let markingColor: string = null
 
 		if (markedPackages) {
 			let markedParentPackages = markedPackages.filter(mp => node.path.includes(mp.path))
 
 			if (markedParentPackages.length > 0) {
-				let sortedMarkedParentPackages = markedParentPackages.sort((a, b) => b.path.length - a.path.length)
+				let sortedMarkedParentPackages = markedParentPackages.sort((a, b) => this.sortByPathLength(a, b))
 				markingColor = sortedMarkedParentPackages[0].color
 			}
 		}
 		return markingColor
+	}
+
+	private static sortByPathLength(a: MarkedPackage, b: MarkedPackage) {
+		return b.path.length - a.path.length
 	}
 }

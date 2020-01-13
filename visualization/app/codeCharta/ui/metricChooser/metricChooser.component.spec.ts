@@ -1,243 +1,282 @@
 import "./metricChooser.module"
 
 import { MetricChooserController } from "./metricChooser.component"
-import { SettingsService } from "../../state/settings.service"
-import { CodeMapBuildingTransition } from "../codeMap/codeMap.mouseEvent.service"
 import { getService, instantiateModule } from "../../../../mocks/ng.mockhelper"
-import { IRootScopeService } from "angular"
-import { Settings } from "../../codeCharta.model"
-import { DEFAULT_SETTINGS, SETTINGS } from "../../util/dataMocks"
+import { IRootScopeService, ITimeoutService } from "angular"
+import { MetricService } from "../../state/metric.service"
+import { StoreService } from "../../state/store.service"
+import { AreaMetricService } from "../../state/store/dynamicSettings/areaMetric/areaMetric.service"
+import { HeightMetricService } from "../../state/store/dynamicSettings/heightMetric/heightMetric.service"
+import { ColorMetricService } from "../../state/store/dynamicSettings/colorMetric/colorMetric.service"
+import { DistributionMetricService } from "../../state/store/dynamicSettings/distributionMetric/distributionMetric.service"
+import { MetricData } from "../../codeCharta.model"
 
 describe("MetricChooserController", () => {
 	let metricChooserController: MetricChooserController
-	let services
-	let dataDelta, dataNotDelta
+	let $rootScope: IRootScopeService
+	let $timeout: ITimeoutService
+	let storeService: StoreService
 
 	function rebuildController() {
-		metricChooserController = new MetricChooserController(services.SettingsService, services.$rootScope)
+		metricChooserController = new MetricChooserController($rootScope, $timeout, storeService)
 	}
 
 	function restartSystem() {
 		instantiateModule("app.codeCharta.ui.metricChooser")
 
-		services = {
-			settingsService: getService<SettingsService>("settingsService"),
-			$rootScope: getService<IRootScopeService>("$rootScope")
-		}
-	}
-
-	function withMockedSettingsService() {
-		services.settingsService = metricChooserController["settingsService"] = jest.fn(() => {
-			return {
-				subscribe: jest.fn(),
-				updateSettings: jest.fn(),
-				getSettings: jest.fn().mockReturnValue(SETTINGS),
-				getDefaultSettings: jest.fn().mockReturnValue(DEFAULT_SETTINGS)
-			}
-		})()
-	}
-
-	function withMockedBuildingTransitions() {
-		dataDelta = ({
-			to: {
-				node: {
-					attributes: { area: 10, height: 20, color: 30 },
-					deltas: { area: 40, height: 50, color: 60 }
-				}
-			}
-		} as unknown) as CodeMapBuildingTransition
-
-		dataNotDelta = ({
-			to: {
-				node: {
-					attributes: { area: 10, height: 20, color: 30 }
-				}
-			}
-		} as unknown) as CodeMapBuildingTransition
+		$rootScope = getService<IRootScopeService>("$rootScope")
+		$timeout = getService<ITimeoutService>("$timeout")
+		storeService = getService<StoreService>("storeService")
 	}
 
 	beforeEach(() => {
 		restartSystem()
 		rebuildController()
-		withMockedSettingsService()
 	})
 
-	it("should uptate height/area/color metric on settings changed", () => {
-		let settings = { dynamicSettings: { areaMetric: "foo", heightMetric: "bar", colorMetric: "foobar" } } as Settings
+	function setMetricData(metricData: MetricData[]) {
+		metricChooserController["originalMetricData"] = metricData
+		metricChooserController["_viewModel"].metricData = metricData
+	}
 
-		metricChooserController.onSettingsChanged(settings, undefined, null)
+	describe("constructor", () => {
+		it("should subscribe to AreaMetricService", () => {
+			AreaMetricService.subscribe = jest.fn()
 
-		expect(metricChooserController["_viewModel"].areaMetric).toEqual("foo")
-		expect(metricChooserController["_viewModel"].heightMetric).toEqual("bar")
-		expect(metricChooserController["_viewModel"].colorMetric).toEqual("foobar")
-	})
+			rebuildController()
 
-	it("metric data should be updated", () => {
-		let metricData = [
-			{ name: "a", maxValue: 1, availableInVisibleMaps: true },
-			{ name: "b", maxValue: 2, availableInVisibleMaps: false }
-		]
+			expect(AreaMetricService.subscribe).toHaveBeenCalledWith($rootScope, metricChooserController)
+		})
 
-		metricChooserController.onMetricDataAdded(metricData, null)
+		it("should subscribe to HeightMetricService", () => {
+			HeightMetricService.subscribe = jest.fn()
 
-		expect(metricChooserController["_viewModel"].metricData).toEqual(metricData)
-	})
+			rebuildController()
 
-	it("settings are updated if selected metrics are not available", () => {
-		let metricData = [
-			{ name: "a", maxValue: 1, availableInVisibleMaps: true },
-			{ name: "b", maxValue: 2, availableInVisibleMaps: true },
-			{ name: "c", maxValue: 2, availableInVisibleMaps: true }
-		]
+			expect(HeightMetricService.subscribe).toHaveBeenCalledWith($rootScope, metricChooserController)
+		})
 
-		metricChooserController.onMetricDataAdded(metricData, null)
+		it("should subscribe to ColorMetricService", () => {
+			ColorMetricService.subscribe = jest.fn()
 
-		expect(services.settingsService.updateSettings).toHaveBeenCalledWith({
-			dynamicSettings: { areaMetric: "a", colorMetric: "c", heightMetric: "b" }
+			rebuildController()
+
+			expect(ColorMetricService.subscribe).toHaveBeenCalledWith($rootScope, metricChooserController)
+		})
+
+		it("should subscribe to DistributionMetricService", () => {
+			DistributionMetricService.subscribe = jest.fn()
+
+			rebuildController()
+
+			expect(DistributionMetricService.subscribe).toHaveBeenCalledWith($rootScope, metricChooserController)
+		})
+
+		it("should subscribe to MetricService", () => {
+			MetricService.subscribe = jest.fn()
+
+			rebuildController()
+
+			expect(MetricService.subscribe).toHaveBeenCalledWith($rootScope, metricChooserController)
 		})
 	})
 
-	it("same metric is selected multiple times if less than 3 metrics available", () => {
-		let metricData = [
-			{ name: "a", maxValue: 1, availableInVisibleMaps: true },
-			{ name: "b", maxValue: 1, availableInVisibleMaps: false }
-		]
+	describe("onAreaMetricChanged", () => {
+		it("should update the viewModel", () => {
+			metricChooserController.onAreaMetricChanged("rloc")
 
-		metricChooserController.onMetricDataAdded(metricData, null)
-
-		expect(services.settingsService.updateSettings).toHaveBeenCalledWith({
-			dynamicSettings: { areaMetric: "a", colorMetric: "a", heightMetric: "a" }
+			expect(metricChooserController["_viewModel"].areaMetric).toEqual("rloc")
 		})
 	})
 
-	it("settings are not updated if selected metrics are available", () => {
-		let metricData = [
-			{ name: "mcc", maxValue: 1, availableInVisibleMaps: true },
-			{ name: "rloc", maxValue: 2, availableInVisibleMaps: true }
-		]
+	describe("onHeightMetricChanged", () => {
+		it("should update the viewModel", () => {
+			metricChooserController.onHeightMetricChanged("rloc")
 
-		metricChooserController.onMetricDataAdded(metricData, null)
-
-		expect(services.settingsService.updateSettings).not.toBeCalled()
-	})
-
-	it("no metrics available, should not update settings", () => {
-		let metricData = [{ name: "b", maxValue: 2, availableInVisibleMaps: false }]
-
-		metricChooserController.onMetricDataAdded(metricData, null)
-
-		expect(services.settingsService.updateSettings).not.toBeCalled()
-	})
-
-	it("apply settings area metric updates settings", () => {
-		metricChooserController["_viewModel"].areaMetric = "a"
-
-		metricChooserController.applySettingsAreaMetric()
-
-		expect(services.settingsService.updateSettings).toBeCalledWith({ dynamicSettings: { areaMetric: "a", margin: null } })
-	})
-
-	it("apply settings color metric updates settings", () => {
-		metricChooserController["_viewModel"].colorMetric = "c"
-
-		metricChooserController.applySettingsColorMetric()
-
-		expect(services.settingsService.updateSettings).toBeCalledWith({
-			dynamicSettings: { colorMetric: "c", neutralColorRange: { flipped: false, from: null, to: null } }
+			expect(metricChooserController["_viewModel"].heightMetric).toEqual("rloc")
 		})
 	})
 
-	it("apply settings height metric updates settings", () => {
-		metricChooserController["_viewModel"].heightMetric = "b"
+	describe("onColorMetricChanged", () => {
+		it("should update the viewModel", () => {
+			metricChooserController.onColorMetricChanged("rloc")
 
-		metricChooserController.applySettingsHeightMetric()
-
-		expect(services.settingsService.updateSettings).toBeCalledWith({ dynamicSettings: { heightMetric: "b" } })
+			expect(metricChooserController["_viewModel"].colorMetric).toEqual("rloc")
+		})
 	})
 
-	it("should set values and deltas to null if data incomplete", () => {
-		let data = { from: {}, to: {} } as CodeMapBuildingTransition
+	describe("onDistributionMetricChanged", () => {
+		it("should update the viewModel", () => {
+			metricChooserController.onDistributionMetricChanged("rloc")
 
-		metricChooserController.onBuildingHovered(data, null)
-
-		expect(metricChooserController.hoveredAreaDelta).toBe(null)
-		expect(metricChooserController.hoveredAreaValue).toBe(null)
-		expect(metricChooserController.hoveredColorDelta).toBe(null)
-		expect(metricChooserController.hoveredColorValue).toBe(null)
-		expect(metricChooserController.hoveredHeightValue).toBe(null)
-		expect(metricChooserController.hoveredHeightDelta).toBe(null)
+			expect(metricChooserController["_viewModel"].distributionMetric).toEqual("rloc")
+		})
 	})
 
-	it("should set hovered values and set hovered deltas to null if not delta", () => {
-		withMockedBuildingTransitions()
-		metricChooserController["_viewModel"].areaMetric = "area"
-		metricChooserController["_viewModel"].heightMetric = "height"
-		metricChooserController["_viewModel"].colorMetric = "color"
+	describe("onMetricDataAdded", () => {
+		it("metric data should be updated", () => {
+			const metricData = [
+				{ name: "a", maxValue: 1, availableInVisibleMaps: true },
+				{ name: "b", maxValue: 2, availableInVisibleMaps: false }
+			]
 
-		metricChooserController.onBuildingHovered(dataNotDelta, null)
+			metricChooserController.onMetricDataAdded(metricData)
 
-		expect(metricChooserController.hoveredAreaDelta).toBe(null)
-		expect(metricChooserController.hoveredAreaValue).toBe(10)
-		expect(metricChooserController.hoveredColorDelta).toBe(null)
-		expect(metricChooserController.hoveredColorValue).toBe(30)
-		expect(metricChooserController.hoveredHeightValue).toBe(20)
-		expect(metricChooserController.hoveredHeightDelta).toBe(null)
+			expect(metricChooserController["_viewModel"].metricData).toEqual(metricData)
+		})
 	})
 
-	it("should set hovered values and deltas if delta", () => {
-		withMockedBuildingTransitions()
-		metricChooserController["_viewModel"].areaMetric = "area"
-		metricChooserController["_viewModel"].heightMetric = "height"
-		metricChooserController["_viewModel"].colorMetric = "color"
+	describe("applySettingsAreaMetric", () => {
+		it("should update areaMetric", () => {
+			metricChooserController["_viewModel"].areaMetric = "mcc"
 
-		metricChooserController.onBuildingHovered(dataDelta, null)
+			metricChooserController.applySettingsAreaMetric()
 
-		expect(metricChooserController.hoveredAreaDelta).toBe(40)
-		expect(metricChooserController.hoveredAreaValue).toBe(10)
-		expect(metricChooserController.hoveredColorDelta).toBe(60)
-		expect(metricChooserController.hoveredColorValue).toBe(30)
-		expect(metricChooserController.hoveredHeightValue).toBe(20)
-		expect(metricChooserController.hoveredHeightDelta).toBe(50)
+			expect(storeService.getState().dynamicSettings.areaMetric).toEqual("mcc")
+		})
 	})
 
-	it("hovered delta color should be null if not delta", () => {
-		withMockedBuildingTransitions()
-		metricChooserController.hoveredDeltaColor = "foo"
+	describe("applySettingsColorMetric", () => {
+		it("should update color metric settings", () => {
+			metricChooserController["_viewModel"].colorMetric = "c"
 
-		metricChooserController.onBuildingHovered(dataNotDelta, null)
+			metricChooserController.applySettingsColorMetric()
 
-		expect(metricChooserController.hoveredDeltaColor).toBe(null)
+			expect(storeService.getState().dynamicSettings.colorMetric).toEqual("c")
+		})
 	})
 
-	it("hovered delta color should be inherited if hoveredHeigtDelta is 0", () => {
-		withMockedBuildingTransitions()
-		metricChooserController.hoveredHeightDelta = 0
+	describe("applySettingsHeightMetric", () => {
+		it("should update height metric settings", () => {
+			metricChooserController["_viewModel"].heightMetric = "b"
 
-		metricChooserController.onBuildingHovered(dataDelta, null)
+			metricChooserController.applySettingsHeightMetric()
 
-		expect(metricChooserController.hoveredDeltaColor).toBe("inherit")
+			expect(storeService.getState().dynamicSettings.heightMetric).toEqual("b")
+		})
 	})
 
-	it("hovered delta color should be set correctly", () => {
-		withMockedBuildingTransitions()
-		metricChooserController["_viewModel"].heightMetric = "height"
-		metricChooserController.hoveredHeightDelta = 2
+	describe("applySettingsDistributionMetric", () => {
+		it("should update distribution metric  settings", () => {
+			metricChooserController["_viewModel"].distributionMetric = "d"
 
-		metricChooserController.onBuildingHovered(dataDelta, null)
+			metricChooserController.applySettingsDistributionMetric()
 
-		expect(metricChooserController.hoveredDeltaColor).toBe("green")
+			expect(storeService.getState().dynamicSettings.distributionMetric).toEqual("d")
+		})
 	})
 
-	it("hovered delta color should be set correctly if reversed colors", () => {
-		withMockedBuildingTransitions()
-		metricChooserController["_viewModel"].heightMetric = "height"
-		metricChooserController.hoveredHeightDelta = 2
-		services.settingsService.getSettings = jest.fn(() => {
-			return { appSettings: { deltaColorFlipped: true } }
+	describe("filterMetricData", () => {
+		it("should return the default MetricData list", () => {
+			const metricData = [
+				{ name: "rloc", maxValue: 1, availableInVisibleMaps: true },
+				{ name: "mcc", maxValue: 2, availableInVisibleMaps: false }
+			]
+			setMetricData(metricData)
+			metricChooserController["_viewModel"].searchTerm = ""
+
+			metricChooserController.filterMetricData()
+
+			expect(metricChooserController["_viewModel"].metricData).toEqual(metricData)
+		})
+		it("should return only metric mcc from MetricData list, when its the searchTerm", () => {
+			const metricData = [
+				{ name: "rloc", maxValue: 1, availableInVisibleMaps: true },
+				{ name: "mcc", maxValue: 2, availableInVisibleMaps: false }
+			]
+			setMetricData(metricData)
+			metricChooserController["_viewModel"].searchTerm = "mcc"
+
+			metricChooserController.filterMetricData()
+
+			expect(metricChooserController["_viewModel"].metricData).toEqual([{ name: "mcc", maxValue: 2, availableInVisibleMaps: false }])
 		})
 
-		metricChooserController.onBuildingHovered(dataDelta, null)
+		it("should return rloc metric when searchTerm is only 'rl'", () => {
+			const metricData = [
+				{ name: "rloc", maxValue: 1, availableInVisibleMaps: true },
+				{ name: "mcc", maxValue: 2, availableInVisibleMaps: false }
+			]
+			setMetricData(metricData)
+			metricChooserController["_viewModel"].searchTerm = "rl"
 
-		expect(metricChooserController.hoveredDeltaColor).toBe("red")
+			metricChooserController.filterMetricData()
+
+			expect(metricChooserController["_viewModel"].metricData).toEqual([{ name: "rloc", maxValue: 1, availableInVisibleMaps: true }])
+		})
+
+		it("should return the metrics which contains the metrics with 'c' in it", () => {
+			const metricData = [
+				{ name: "rloc", maxValue: 1, availableInVisibleMaps: true },
+				{ name: "mcc", maxValue: 2, availableInVisibleMaps: false },
+				{ name: "avg", maxValue: 3, availableInVisibleMaps: false }
+			]
+			setMetricData(metricData)
+			metricChooserController["_viewModel"].searchTerm = "c"
+
+			metricChooserController.filterMetricData()
+
+			expect(metricChooserController["_viewModel"].metricData).toEqual([
+				{ name: "rloc", maxValue: 1, availableInVisibleMaps: true },
+				{ name: "mcc", maxValue: 2, availableInVisibleMaps: false }
+			])
+		})
+
+		it("should return the metrics which contains substrings with 'mc' as prefix", () => {
+			const metricData = [
+				{ name: "rloc", maxValue: 1, availableInVisibleMaps: true },
+				{ name: "mcc", maxValue: 2, availableInVisibleMaps: false },
+				{ name: "avg", maxValue: 3, availableInVisibleMaps: false },
+				{ name: "cmc", maxValue: 4, availableInVisibleMaps: true }
+			]
+			setMetricData(metricData)
+			metricChooserController["_viewModel"].searchTerm = "mc"
+
+			metricChooserController.filterMetricData()
+
+			expect(metricChooserController["_viewModel"].metricData).toEqual([
+				{ name: "mcc", maxValue: 2, availableInVisibleMaps: false },
+				{ name: "cmc", maxValue: 4, availableInVisibleMaps: true }
+			])
+		})
+		it("should return an empty metric list if it doesn't have the searchTerm as substring", () => {
+			const metricData = [
+				{ name: "rloc", maxValue: 1, availableInVisibleMaps: true },
+				{ name: "mcc", maxValue: 2, availableInVisibleMaps: false },
+				{ name: "avg", maxValue: 3, availableInVisibleMaps: false },
+				{ name: "cmc", maxValue: 4, availableInVisibleMaps: true }
+			]
+			setMetricData(metricData)
+			metricChooserController["_viewModel"].searchTerm = "rla"
+
+			metricChooserController.filterMetricData()
+
+			expect(metricChooserController["_viewModel"].metricData).toEqual([])
+		})
+	})
+
+	describe("clearSearchTerm", () => {
+		it("should return an empty string, when function is called", () => {
+			metricChooserController["_viewModel"].searchTerm = "someString"
+
+			metricChooserController.clearSearchTerm()
+
+			expect(metricChooserController["_viewModel"].searchTerm).toEqual("")
+		})
+
+		it("should return the metricData array with all elements, when function is called", () => {
+			const metricData = [
+				{ name: "rloc", maxValue: 1, availableInVisibleMaps: true },
+				{ name: "mcc", maxValue: 2, availableInVisibleMaps: false },
+				{ name: "avg", maxValue: 3, availableInVisibleMaps: false },
+				{ name: "cmc", maxValue: 4, availableInVisibleMaps: true }
+			]
+			setMetricData(metricData)
+			metricChooserController["_viewModel"].searchTerm = "rlo"
+
+			metricChooserController.clearSearchTerm()
+
+			expect(metricChooserController["_viewModel"].metricData).toEqual(metricData)
+		})
 	})
 })

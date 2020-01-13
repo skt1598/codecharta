@@ -1,161 +1,102 @@
-import { SettingsService, SettingsServiceSubscriber } from "../../state/settings.service"
-import { IAngularEvent, IRootScopeService } from "angular"
 import "./metricChooser.component.scss"
-import {
-	CodeMapBuildingTransition,
-	CodeMapMouseEventService,
-	CodeMapMouseEventServiceSubscriber
-} from "../codeMap/codeMap.mouseEvent.service"
-import { CodeMapBuilding } from "../codeMap/rendering/codeMapBuilding"
-import { MetricData, Settings, DynamicSettings, RecursivePartial } from "../../codeCharta.model"
+import { IRootScopeService, ITimeoutService } from "angular"
+import { MetricData } from "../../codeCharta.model"
 import { MetricService, MetricServiceSubscriber } from "../../state/metric.service"
+import $ from "jquery"
+import { StoreService } from "../../state/store.service"
+import { setAreaMetric } from "../../state/store/dynamicSettings/areaMetric/areaMetric.actions"
+import { setHeightMetric } from "../../state/store/dynamicSettings/heightMetric/heightMetric.actions"
+import { setDistributionMetric } from "../../state/store/dynamicSettings/distributionMetric/distributionMetric.actions"
+import { setColorMetric } from "../../state/store/dynamicSettings/colorMetric/colorMetric.actions"
+import { AreaMetricService, AreaMetricSubscriber } from "../../state/store/dynamicSettings/areaMetric/areaMetric.service"
+import { HeightMetricService, HeightMetricSubscriber } from "../../state/store/dynamicSettings/heightMetric/heightMetric.service"
+import { ColorMetricService, ColorMetricSubscriber } from "../../state/store/dynamicSettings/colorMetric/colorMetric.service"
+import {
+	DistributionMetricService,
+	DistributionMetricSubscriber
+} from "../../state/store/dynamicSettings/distributionMetric/distributionMetric.service"
 
-export class MetricChooserController implements MetricServiceSubscriber, CodeMapMouseEventServiceSubscriber, SettingsServiceSubscriber {
-	public hoveredAreaValue: number
-	public hoveredHeightValue: number
-	public hoveredColorValue: number
-	public hoveredHeightDelta: number
-	public hoveredAreaDelta: number
-	public hoveredColorDelta: number
-	public hoveredDeltaColor: string
+export class MetricChooserController
+	implements MetricServiceSubscriber, AreaMetricSubscriber, HeightMetricSubscriber, ColorMetricSubscriber, DistributionMetricSubscriber {
+	private originalMetricData: MetricData[]
 
 	private _viewModel: {
 		metricData: MetricData[]
 		areaMetric: string
 		colorMetric: string
 		heightMetric: string
+		distributionMetric: string
+		searchTerm: string
 	} = {
 		metricData: [],
 		areaMetric: null,
 		colorMetric: null,
-		heightMetric: null
+		heightMetric: null,
+		distributionMetric: null,
+		searchTerm: ""
 	}
 
 	/* @ngInject */
-	constructor(private settingsService: SettingsService, private $rootScope: IRootScopeService) {
-		SettingsService.subscribe(this.$rootScope, this)
-		CodeMapMouseEventService.subscribe(this.$rootScope, this)
+	constructor(private $rootScope: IRootScopeService, private $timeout: ITimeoutService, private storeService: StoreService) {
+		AreaMetricService.subscribe(this.$rootScope, this)
+		HeightMetricService.subscribe(this.$rootScope, this)
+		ColorMetricService.subscribe(this.$rootScope, this)
+		DistributionMetricService.subscribe(this.$rootScope, this)
 		MetricService.subscribe(this.$rootScope, this)
 	}
 
-	public onSettingsChanged(settings: Settings, update: RecursivePartial<Settings>, event: angular.IAngularEvent) {
-		this.updateViewModel(settings)
+	public onAreaMetricChanged(areaMetric: string) {
+		this._viewModel.areaMetric = areaMetric
 	}
 
-	public onMetricDataAdded(metricData: MetricData[], event: angular.IAngularEvent) {
+	public onHeightMetricChanged(heightMetric: string) {
+		this._viewModel.heightMetric = heightMetric
+	}
+
+	public onColorMetricChanged(colorMetric: string) {
+		this._viewModel.colorMetric = colorMetric
+	}
+
+	public onDistributionMetricChanged(distributionMetric: string) {
+		this._viewModel.distributionMetric = distributionMetric
+	}
+
+	public onMetricDataAdded(metricData: MetricData[]) {
 		this._viewModel.metricData = metricData
-		this.potentiallyUpdateChosenMetrics(metricData)
+		this.originalMetricData = metricData
 	}
 
-	public onMetricDataRemoved(event: angular.IAngularEvent) {}
-
-	private potentiallyUpdateChosenMetrics(metricData: MetricData[]) {
-		const metricKeys: Partial<DynamicSettings> = {
-			areaMetric: "areaMetric",
-			heightMetric: "heightMetric",
-			colorMetric: "colorMetric"
-		}
-		let settingsUpdate: RecursivePartial<Settings> = this.prepareSettingsUpdateWithMetrics(metricKeys, metricData)
-		if (Object.keys(settingsUpdate.dynamicSettings).length !== 0) {
-			this.settingsService.updateSettings(settingsUpdate)
-		}
+	public filterMetricData() {
+		this._viewModel.metricData = this.originalMetricData.filter(metric =>
+			metric.name.toLowerCase().includes(this._viewModel.searchTerm.toLowerCase())
+		)
 	}
 
-	private prepareSettingsUpdateWithMetrics(metricKeys: Partial<DynamicSettings>, metricData: MetricData[]): RecursivePartial<Settings> {
-		let settingsUpdate = { dynamicSettings: {} }
-
-		let metricSelectionIndex = 0
-		for (const metricKey in metricKeys) {
-			const metricValue: string = this.settingsService.getSettings().dynamicSettings[metricKey]
-			const availableMetrics: MetricData[] = metricData.filter(x => x.availableInVisibleMaps)
-
-			if (availableMetrics.length > 0 && !availableMetrics.find(x => x.name == metricValue)) {
-				// metric value is "rloc" if not found in available, then gogogo
-				settingsUpdate.dynamicSettings[metricKey] =
-					availableMetrics[Math.min(metricSelectionIndex, availableMetrics.length - 1)].name
-			}
-			metricSelectionIndex++
-		}
-		return settingsUpdate
+	public clearSearchTerm() {
+		this._viewModel.searchTerm = ""
+		this._viewModel.metricData = this.originalMetricData
 	}
 
-	private updateViewModel(settings: Settings) {
-		this._viewModel.areaMetric = settings.dynamicSettings.areaMetric
-		this._viewModel.colorMetric = settings.dynamicSettings.colorMetric
-		this._viewModel.heightMetric = settings.dynamicSettings.heightMetric
+	public focusInputField(idName: string) {
+		this.$timeout(() => {
+			$(".metric-search." + idName).focus()
+		}, 200)
 	}
 
 	public applySettingsAreaMetric() {
-		this.settingsService.updateSettings({
-			dynamicSettings: {
-				areaMetric: this._viewModel.areaMetric,
-				margin: this.settingsService.getDefaultSettings().dynamicSettings.margin
-			}
-		})
+		this.storeService.dispatch(setAreaMetric(this._viewModel.areaMetric))
 	}
 
 	public applySettingsColorMetric() {
-		this.settingsService.updateSettings({
-			dynamicSettings: {
-				colorMetric: this._viewModel.colorMetric,
-				neutralColorRange: this.settingsService.getDefaultSettings().dynamicSettings.neutralColorRange
-			}
-		})
+		this.storeService.dispatch(setColorMetric(this._viewModel.colorMetric))
 	}
 
 	public applySettingsHeightMetric() {
-		this.settingsService.updateSettings({
-			dynamicSettings: {
-				heightMetric: this._viewModel.heightMetric
-			}
-		})
+		this.storeService.dispatch(setHeightMetric(this._viewModel.heightMetric))
 	}
 
-	public onBuildingRightClicked(building: CodeMapBuilding, x: number, y: number, event: IAngularEvent) {}
-
-	public onBuildingHovered(data: CodeMapBuildingTransition, event: angular.IAngularEvent) {
-		if (data && data.to && data.to.node && data.to.node.attributes) {
-			this.hoveredAreaValue = data.to.node.attributes[this._viewModel.areaMetric]
-			this.hoveredColorValue = data.to.node.attributes[this._viewModel.colorMetric]
-			this.hoveredHeightValue = data.to.node.attributes[this._viewModel.heightMetric]
-
-			if (data.to.node.deltas) {
-				this.hoveredAreaDelta = data.to.node.deltas[this._viewModel.areaMetric]
-				this.hoveredColorDelta = data.to.node.deltas[this._viewModel.colorMetric]
-				this.hoveredHeightDelta = data.to.node.deltas[this._viewModel.heightMetric]
-
-				this.hoveredDeltaColor = this.getHoveredDeltaColor()
-			} else {
-				this.hoveredAreaDelta = null
-				this.hoveredColorDelta = null
-				this.hoveredHeightDelta = null
-				this.hoveredDeltaColor = null
-			}
-		} else {
-			this.hoveredAreaValue = null
-			this.hoveredColorValue = null
-			this.hoveredHeightValue = null
-			this.hoveredHeightDelta = null
-			this.hoveredAreaDelta = null
-			this.hoveredColorDelta = null
-		}
-	}
-
-	public onBuildingSelected(data: CodeMapBuildingTransition, event: angular.IAngularEvent) {}
-
-	private getHoveredDeltaColor() {
-		let colors = {
-			0: "green",
-			1: "red"
-		}
-
-		if (this.hoveredHeightDelta > 0) {
-			return colors[Number(this.settingsService.getSettings().appSettings.deltaColorFlipped)]
-		} else if (this.hoveredHeightDelta < 0) {
-			return colors[Number(!this.settingsService.getSettings().appSettings.deltaColorFlipped)]
-		} else {
-			return "inherit"
-		}
+	public applySettingsDistributionMetric() {
+		this.storeService.dispatch(setDistributionMetric(this._viewModel.distributionMetric))
 	}
 }
 
@@ -174,5 +115,11 @@ export const heightMetricChooserComponent = {
 export const colorMetricChooserComponent = {
 	selector: "colorMetricChooserComponent",
 	template: require("./metricChooser.color.component.html"),
+	controller: MetricChooserController
+}
+
+export const distribitionMetricChooserComponent = {
+	selector: "distributionMetricChooserComponent",
+	template: require("./metricChooser.distribution.component.html"),
 	controller: MetricChooserController
 }

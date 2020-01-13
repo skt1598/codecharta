@@ -1,10 +1,10 @@
 import "./viewCube.component.scss"
 import * as THREE from "three"
+import { PerspectiveCamera } from "three"
 import { IRootScopeService } from "angular"
 import { ViewCubemeshGenerator } from "./viewCube.meshGenerator"
-import { ThreeOrbitControlsService, CameraChangeSubscriber } from "../codeMap/threeViewer/threeOrbitControlsService"
-import { PerspectiveCamera } from "three"
-import { ViewCubeMouseEventsService, ViewCubeEventSubscriber } from "./viewCube.mouseEvents.service"
+import { CameraChangeSubscriber, ThreeOrbitControlsService } from "../codeMap/threeViewer/threeOrbitControlsService"
+import { ViewCubeEventSubscriber, ViewCubeMouseEventsService } from "./viewCube.mouseEvents.service"
 
 export class ViewCubeController implements CameraChangeSubscriber, ViewCubeEventSubscriber {
 	private lights: THREE.Group
@@ -120,14 +120,14 @@ export class ViewCubeController implements CameraChangeSubscriber, ViewCubeEvent
 
 	public onCubeHovered(cube: THREE.Mesh) {
 		this.hoverInfo = {
-			cube,
+			cube: cube,
 			originalMaterial: cube.material
 		}
-		;(this.hoverInfo.cube.material as THREE.MeshLambertMaterial).emissive = new THREE.Color(0xffffff)
+		this.hoverInfo.cube.material.emissive = new THREE.Color(0xffffff)
 	}
 
 	public onCubeUnhovered() {
-		;(this.hoverInfo.cube.material as THREE.MeshLambertMaterial).emissive = new THREE.Color(0x000000)
+		this.hoverInfo.cube.material.emissive = new THREE.Color(0x000000)
 		this.hoverInfo.cube = null
 	}
 

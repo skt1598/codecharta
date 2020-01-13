@@ -2,52 +2,56 @@
   {
     "name": "Complexity",
     "settings": {
+      "appSettings": {
+        "invertColorRange": false
+      },
       "dynamicSettings": {
-        "neutralColorRange": {
-          "flipped": false
-        },
         "areaMetric": "rloc",
         "heightMetric": "mcc",
-        "colorMetric": "mcc"
+        "colorMetric": "mcc",
+        "distributionMetric": "rloc"
       }
     }
   },
   {
     "name": "Average Complexity*",
     "settings": {
+      "appSettings": {
+        "invertColorRange": false
+      },
       "dynamicSettings": {
-        "neutralColorRange": {
-          "flipped": false
-        },
         "areaMetric": "unary",
         "heightMetric": "Average Complexity*",
-        "colorMetric": "Average Complexity*"
+        "colorMetric": "Average Complexity*",
+        "distributionMetric": "unary"
       }
     }
   },
   {
     "name": "Coverage",
     "settings": {
+      "appSettings": {
+        "invertColorRange": true
+      },
       "dynamicSettings": {
-        "neutralColorRange": {
-          "flipped": true
-        },
         "areaMetric": "rloc",
         "heightMetric": "mcc",
-        "colorMetric": "line_coverage"
+        "colorMetric": "line_coverage",
+        "distributionMetric": "rloc"
       }
     }
   },
   {
     "name": "Code Churn",
     "settings": {
+      "appSettings": {
+        "invertColorRange": false
+      },
       "dynamicSettings": {
-        "neutralColorRange": {
-          "flipped": false
-        },
         "areaMetric": "rloc",
         "heightMetric": "abs_code_churn",
-        "colorMetric": "weeks_with_commits"
+        "colorMetric": "weeks_with_commits",
+        "distributionMetric": "rloc"
       }
     }
   }

@@ -1,11 +1,16 @@
-import { queryParamDialog } from "./queryParam.dialog"
+import { dialogDownloadComponent } from "./dialog.download.component"
+import { dialogGlobalSettingsComponent } from "./dialog.globalSettings.component"
 
 export class DialogService {
 	/* @ngInject */
 	constructor(private $mdDialog) {}
 
-	public showQueryParamDialog() {
-		this.showCustomDialog(queryParamDialog)
+	public showDownloadDialog() {
+		this.showCustomDialog(dialogDownloadComponent)
+	}
+
+	public showGlobalSettingsDialog() {
+		this.showCustomDialog(dialogGlobalSettingsComponent)
 	}
 
 	public showCustomDialog(dialog) {

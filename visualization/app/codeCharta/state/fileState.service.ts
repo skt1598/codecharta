@@ -1,20 +1,18 @@
 import { CCFile, FileSelectionState, FileState } from "../codeCharta.model"
-import { IAngularEvent, IRootScopeService } from "angular"
-import { LoadingGifService } from "../ui/loadingGif/loadingGif.service"
+import { IRootScopeService } from "angular"
+import { LoadingStatusService } from "./loadingStatus.service"
 
-export interface FileStateServiceSubscriber {
-	onFileSelectionStatesChanged(fileStates: FileState[], event: IAngularEvent)
-	onImportedFilesChanged(fileStates: FileState[], event: IAngularEvent)
+export interface FileStateSubscriber {
+	onFileStatesChanged(fileStates: FileState[])
 }
 
 export class FileStateService {
-	private static FILE_STATE_CHANGED_EVENT = "file-selection-states-changed"
-	private static IMPORTED_FILES_CHANGED_EVENT = "imported-files-changed"
+	private static FILE_STATE_CHANGED_EVENT = "file-states-changed"
 
 	private fileStates: Array<FileState> = []
 
 	/* @ngInject */
-	constructor(private $rootScope: IRootScopeService, private loadingGifService: LoadingGifService) {}
+	constructor(private $rootScope: IRootScopeService, private loadingStatusService: LoadingStatusService) {}
 
 	public resetMaps() {
 		this.fileStates = []
@@ -22,7 +20,6 @@ export class FileStateService {
 
 	public addFile(file: CCFile) {
 		this.fileStates.push({ file: file, selectedAs: FileSelectionState.None })
-		this.notifyFileImport()
 	}
 
 	public getCCFiles(): CCFile[] {
@@ -68,20 +65,13 @@ export class FileStateService {
 	}
 
 	private notifySelectionChange() {
-		this.loadingGifService.updateLoadingMapFlag(true)
+		this.loadingStatusService.updateLoadingMapFlag(true)
 		this.$rootScope.$broadcast(FileStateService.FILE_STATE_CHANGED_EVENT, this.fileStates)
 	}
 
-	private notifyFileImport() {
-		this.$rootScope.$broadcast(FileStateService.IMPORTED_FILES_CHANGED_EVENT, this.fileStates)
-	}
-
-	public static subscribe($rootScope: IRootScopeService, subscriber: FileStateServiceSubscriber) {
+	public static subscribe($rootScope: IRootScopeService, subscriber: FileStateSubscriber) {
 		$rootScope.$on(FileStateService.FILE_STATE_CHANGED_EVENT, (event, data) => {
-			subscriber.onFileSelectionStatesChanged(data, event)
-		})
-		$rootScope.$on(FileStateService.IMPORTED_FILES_CHANGED_EVENT, (event, data) => {
-			subscriber.onImportedFilesChanged(data, event)
+			subscriber.onFileStatesChanged(data)
 		})
 	}
 }

@@ -1,32 +1,47 @@
 import "./codeMap.module"
 import "../../codeCharta.module"
 import { CodeMapRenderService } from "./codeMap.render.service"
-import { CCFile, Settings } from "../../codeCharta.model"
-import { ThreeOrbitControlsService } from "./threeViewer/threeOrbitControlsService"
+import { CCFile, CodeMapNode, FileMeta, FileState, MetricData } from "../../codeCharta.model"
 import { IRootScopeService } from "angular"
 import { getService, instantiateModule } from "../../../../mocks/ng.mockhelper"
 import { FileStateService } from "../../state/fileState.service"
 import { MetricService } from "../../state/metric.service"
-import { SETTINGS, TEST_FILE_WITH_PATHS } from "../../util/dataMocks"
+import { TEST_FILE_WITH_PATHS, METRIC_DATA, withMockedEventMethods, FILE_STATES, STATE } from "../../util/dataMocks"
 import { CodeMapPreRenderService } from "./codeMap.preRender.service"
-import { LoadingGifService } from "../loadingGif/loadingGif.service"
+import { LoadingStatusService } from "../../state/loadingStatus.service"
+import { EdgeMetricDataService } from "../../state/edgeMetricData.service"
+import { NodeDecorator } from "../../util/nodeDecorator"
+import _ from "lodash"
+import { StoreService } from "../../state/store.service"
+import { ScalingService } from "../../state/store/appSettings/scaling/scaling.service"
+import { setDynamicSettings } from "../../state/store/dynamicSettings/dynamicSettings.actions"
+import { ScalingActions } from "../../state/store/appSettings/scaling/scaling.actions"
+import { Vector3 } from "three"
 
 describe("codeMapPreRenderService", () => {
 	let codeMapPreRenderService: CodeMapPreRenderService
 	let $rootScope: IRootScopeService
-	let threeOrbitControlsService: ThreeOrbitControlsService
+	let storeService: StoreService
+	let fileStateService: FileStateService
+	let metricService: MetricService
 	let codeMapRenderService: CodeMapRenderService
-	let loadingGifService: LoadingGifService
+	let loadingStatusService: LoadingStatusService
+	let edgeMetricDataService: EdgeMetricDataService
 
-	let settings: Settings
 	let file: CCFile
+	let fileMeta: FileMeta
+	let map: CodeMapNode
+	let fileStates: FileState[]
+	let metricData: MetricData[]
 
 	beforeEach(() => {
 		restartSystem()
 		rebuildService()
-		withMockedEventMethods()
-		withMockedThreeOrbitControlsService()
-		withMockedLoadingGifService()
+		withMockedEventMethods($rootScope)
+		withMockedFileStateService()
+		withMockedLoadingStatusService()
+		withMockedCodeMapRenderService()
+		withMockedMetricService()
 	})
 
 	afterEach(() => {
@@ -37,50 +52,70 @@ describe("codeMapPreRenderService", () => {
 		instantiateModule("app.codeCharta.ui.codeMap")
 
 		$rootScope = getService<IRootScopeService>("$rootScope")
-		threeOrbitControlsService = getService<ThreeOrbitControlsService>("threeOrbitControlsService")
+		storeService = getService<StoreService>("storeService")
+		fileStateService = getService<FileStateService>("fileStateService")
+		metricService = getService<MetricService>("metricService")
 		codeMapRenderService = getService<CodeMapRenderService>("codeMapRenderService")
+		edgeMetricDataService = getService<EdgeMetricDataService>("edgeMetricDataService")
 
-		settings = JSON.parse(JSON.stringify(SETTINGS))
-		file = JSON.parse(JSON.stringify(TEST_FILE_WITH_PATHS))
+		file = _.cloneDeep(TEST_FILE_WITH_PATHS)
+		fileMeta = _.cloneDeep(FILE_STATES[0].file.fileMeta)
+		map = _.cloneDeep(TEST_FILE_WITH_PATHS.map)
+		map.children[1].children = _.slice(map.children[1].children, 0, 2)
+		fileStates = _.cloneDeep(FILE_STATES)
+		metricData = _.cloneDeep(METRIC_DATA)
 	}
 
 	function rebuildService() {
 		codeMapPreRenderService = new CodeMapPreRenderService(
 			$rootScope,
-			threeOrbitControlsService,
+			storeService,
+			fileStateService,
+			metricService,
 			codeMapRenderService,
-			loadingGifService
+			loadingStatusService,
+			edgeMetricDataService
 		)
 	}
 
-	function withMockedEventMethods() {
-		$rootScope.$on = codeMapPreRenderService["$rootScope"].$on = jest.fn()
-		$rootScope.$broadcast = codeMapPreRenderService["$rootScope"].$broadcast = jest.fn()
-	}
-
-	function withMockedThreeOrbitControlsService() {
-		threeOrbitControlsService = codeMapPreRenderService["threeOrbitControlsService"] = jest.fn().mockReturnValue({
-			autoFitTo: jest.fn()
+	function withMockedCodeMapRenderService() {
+		codeMapRenderService = codeMapPreRenderService["codeMapRenderService"] = jest.fn().mockReturnValue({
+			render: jest.fn(),
+			scaleMap: jest.fn()
 		})()
 	}
 
-	function withMockedLoadingGifService() {
-		loadingGifService = codeMapPreRenderService["loadingGifService"] = jest.fn().mockReturnValue({
+	function withMockedLoadingStatusService() {
+		loadingStatusService = codeMapPreRenderService["loadingStatusService"] = jest.fn().mockReturnValue({
 			updateLoadingMapFlag: jest.fn(),
-			updateLoadingFileFlag: jest.fn()
+			updateLoadingFileFlag: jest.fn(),
+			isLoadingNewFile: jest.fn()
 		})()
+	}
+
+	function withMockedFileStateService() {
+		fileStateService = codeMapPreRenderService["fileStateService"] = jest.fn().mockReturnValue({
+			getFileStates: jest.fn().mockReturnValue(fileStates)
+		})()
+	}
+
+	function withMockedMetricService() {
+		metricService = codeMapPreRenderService["metricService"] = jest.fn().mockReturnValue({
+			getMetricData: jest.fn().mockReturnValue(metricData),
+			isMetricAvailable: jest.fn().mockReturnValue(true)
+		})()
+	}
+
+	function withUnifiedMapAndFileMeta() {
+		codeMapPreRenderService["unifiedMap"] = map
+		codeMapPreRenderService["unifiedFileMeta"] = fileMeta
 	}
 
 	describe("constructor", () => {
 		beforeEach(() => {
-			FileStateService.subscribe = jest.fn()
 			MetricService.subscribe = jest.fn()
-		})
-
-		it("should call subscribe for FileStateService", () => {
-			rebuildService()
-
-			expect(FileStateService.subscribe).toHaveBeenCalledWith($rootScope, codeMapPreRenderService)
+			StoreService.subscribe = jest.fn()
+			ScalingService.subscribe = jest.fn()
 		})
 
 		it("should call subscribe for MetricService", () => {
@@ -88,23 +123,61 @@ describe("codeMapPreRenderService", () => {
 
 			expect(MetricService.subscribe).toHaveBeenCalledWith($rootScope, codeMapPreRenderService)
 		})
-	})
 
-	describe("getRenderFile", () => {
-		it("should return lastRender.renderFile", () => {
-			codeMapPreRenderService["lastRender"].renderFile = file
+		it("should call subscribe for StoreService", () => {
+			rebuildService()
 
-			const result = codeMapPreRenderService.getRenderFile()
+			expect(StoreService.subscribe).toHaveBeenCalledWith($rootScope, codeMapPreRenderService)
+		})
 
-			expect(result).toEqual(file)
+		it("should call subscribe for ScalingService", () => {
+			rebuildService()
+
+			expect(ScalingService.subscribe).toHaveBeenCalledWith($rootScope, codeMapPreRenderService)
 		})
 	})
 
-	describe("onSettingsChanged", () => {
-		it("should update lastRender.settings", () => {
-			codeMapPreRenderService.onSettingsChanged(settings, undefined, undefined)
+	describe("getRenderMap", () => {
+		it("should return unifiedMap", () => {
+			codeMapPreRenderService["unifiedMap"] = file.map
 
-			expect(codeMapPreRenderService["lastRender"].settings).toEqual(settings)
+			const result = codeMapPreRenderService.getRenderMap()
+
+			expect(result).toEqual(file.map)
+		})
+	})
+
+	describe("onStoreChanged", () => {
+		it("should call codeMapRenderService.render", done => {
+			withUnifiedMapAndFileMeta()
+			storeService.dispatch(setDynamicSettings(STATE.dynamicSettings))
+
+			codeMapPreRenderService.onStoreChanged("SOME_ACTION")
+
+			setTimeout(() => {
+				expect(codeMapRenderService.render).toHaveBeenCalled()
+				done()
+			}, codeMapPreRenderService["DEBOUNCE_TIME"])
+		})
+
+		it("should not call codeMapRenderService.render for scaling actions", () => {
+			withUnifiedMapAndFileMeta()
+			storeService.dispatch(setDynamicSettings(STATE.dynamicSettings))
+
+			codeMapPreRenderService.onStoreChanged(ScalingActions.SET_SCALING)
+
+			expect(codeMapRenderService.render).not.toHaveBeenCalled()
+		})
+	})
+
+	describe("onScalingChanged", () => {
+		it("should call codeMapRenderService.render", () => {
+			withUnifiedMapAndFileMeta()
+			storeService.dispatch(setDynamicSettings(STATE.dynamicSettings))
+
+			codeMapPreRenderService.onScalingChanged(new Vector3(1, 2, 3))
+
+			expect(codeMapRenderService.scaleMap).toHaveBeenCalled()
 		})
 	})
 
@@ -113,6 +186,38 @@ describe("codeMapPreRenderService", () => {
 			CodeMapPreRenderService.subscribe($rootScope, undefined)
 
 			expect($rootScope.$on).toHaveBeenCalled()
+		})
+	})
+
+	describe("onMetricDataAdded", () => {
+		const originalDecorateMap = NodeDecorator.decorateMap
+
+		it("should call Node Decorator functions if all required data is available", () => {
+			NodeDecorator.decorateMap = jest.fn()
+			NodeDecorator.decorateParentNodesWithSumAttributes = jest.fn()
+			withUnifiedMapAndFileMeta()
+
+			codeMapPreRenderService.onMetricDataAdded(metricData)
+
+			expect(NodeDecorator.decorateMap).toHaveBeenCalledWith(map, fileMeta, metricData)
+			expect(NodeDecorator.decorateParentNodesWithSumAttributes).toHaveBeenCalled()
+		})
+
+		it("should retrieve correct edge metrics for leaves", () => {
+			NodeDecorator.decorateMap = originalDecorateMap
+			edgeMetricDataService.getMetricValuesForNode = jest.fn((node: d3.HierarchyNode<CodeMapNode>) => {
+				if (node.data.name === "big leaf") {
+					return new Map().set("metric1", { incoming: 1, outgoing: 2 })
+				} else {
+					return new Map()
+				}
+			})
+			withUnifiedMapAndFileMeta()
+
+			codeMapPreRenderService.onMetricDataAdded(metricData)
+
+			const rootChildren = codeMapPreRenderService["unifiedMap"].children
+			expect(rootChildren.find(x => x.name == "big leaf").edgeAttributes).toEqual({ metric1: { incoming: 1, outgoing: 2 } })
 		})
 	})
 })

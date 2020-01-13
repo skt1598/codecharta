@@ -1,76 +1,93 @@
 package de.maibornwolff.codecharta.importer.sourcecodeparser
 
-import de.maibornwolff.codecharta.importer.sourcecodeparser.oop.infrastructure.antlr.java.AntlrJavaCodeTagProvider
-import de.maibornwolff.codecharta.importer.sourcecodeparser.orchestration.application.*
-import de.maibornwolff.codecharta.importer.sourcecodeparser.orchestration.infrastructure.FileSystemDetailedSourceProvider
-import de.maibornwolff.codecharta.importer.sourcecodeparser.orchestration.infrastructure.FileSystemOverviewSourceProvider
+import de.maibornwolff.codecharta.importer.sourcecodeparser.metricwriters.CSVMetricWriter
+import de.maibornwolff.codecharta.importer.sourcecodeparser.metricwriters.JSONMetricWriter
+import de.maibornwolff.codecharta.importer.sourcecodeparser.metricwriters.MetricWriter
+import de.maibornwolff.codecharta.serialization.ProjectDeserializer
 import picocli.CommandLine.*
 import java.io.*
 import java.nio.file.Paths
 import java.util.concurrent.Callable
 
-@Command(name = "sourcecodeparser", description = ["generates cc.JSON from source code"],
-        footer = ["Copyright(c) 2018, MaibornWolff GmbH"])
-class SourceCodeParserMain(private val outputStream: PrintStream): Callable<Void> {
-
+@Command(
+        name = "sourcecodeparser",
+        description = ["generates cc.json from source code"],
+        footer = ["This program uses the SonarJava, which is licensed under the GNU Lesser General Public Library, version 3.\nCopyright(c) 2019, MaibornWolff GmbH"]
+)
+class SourceCodeParserMain(
+        private val outputStream: PrintStream,
+        private val input: InputStream = System.`in`,
+        private val error: PrintStream = System.err
+) : Callable<Void> {
     // we need this constructor because ccsh requires an empty constructor
-    constructor(): this(System.out)
+    constructor() : this(System.out)
+
+    private val DEFAULT_EXCLUDES = arrayOf("/out/", "/build/", "/target/", "/dist/", "/\\..*")
 
     @Option(names = ["-h", "--help"], usageHelp = true, description = ["displays this help and exits"])
     private var help = false
 
+    @Option(names = ["-i", "--noIssues"], description = ["do not search for sonar issues"])
+    private var findNoIssues = false
+
+    @Option(names = ["-e", "--exclude"], description = ["exclude file/folder according to regex pattern"])
+    private var exclude: Array<String> = arrayOf()
+
+    @Option(names = ["--defaultExcludes"], description = ["exclude build, target, dist and out folders as well as files/folders starting with '.' "])
+    private var defaultExcludes = false
+
     @Option(names = ["-p", "--projectName"], description = ["project name"])
     private var projectName = "DefaultProjectName"
 
-    @Option(names = ["-f", "--format"], description = ["the format to output"],
-            converter = [(OutputTypeConverter::class)])
+    @Option(names = ["-f", "--format"], description = ["the format to output"], converter = [(OutputTypeConverter::class)])
     private var outputFormat = OutputFormat.JSON
 
     @Option(names = ["-o", "--outputFile"], description = ["output File (or empty for stdout)"])
     private var outputFile: File? = null
 
-    @Parameters(arity = "1..*", paramLabel = "FOLDER or FILEs", description = ["single code folder or files"])
-    private var files: List<File> = mutableListOf()
+    @Option(names = ["-v", "--verbose"], description = ["display info messages from sonar plugins"])
+    private var verbose = false
+
+    @Parameters(arity = "1", paramLabel = "FOLDER or FILE", description = ["project folder or code file"])
+    private var file: File = File("")
 
     @Throws(IOException::class)
     override fun call(): Void? {
 
-        if (!files[0].exists()) {
+        print(" ")
+        if (!file.exists()) {
             val path = Paths.get("").toAbsolutePath().toString()
-            outputStream.println("Current working directory = $path")
-            outputStream.println("Could not find " + files[0])
+            error.println("Current working directory = $path")
+            error.println("Could not find $file")
             return null
         }
-        val sourceCodeParserEntryPoint = getSourceCodeParserEntryPoint()
 
-        if (files.size == 1 && files[0].isFile) {
-            sourceCodeParserEntryPoint.printDetailedMetrics(FileSystemDetailedSourceProvider(files[0]))
-        } else {
-            sourceCodeParserEntryPoint.printOverviewMetrics(FileSystemOverviewSourceProvider(files))
-        }
+        if (defaultExcludes) exclude += DEFAULT_EXCLUDES
+
+        val projectParser = ProjectParser(exclude, verbose, !findNoIssues)
+
+        projectParser.setUpAnalyzers()
+        projectParser.scanProject(file)
+
+        val writer = getMetricWriter()
+        val pipedProject = ProjectDeserializer.deserializeProject(input)
+        writer.generate(projectParser.projectMetrics, projectParser.metricKinds, pipedProject)
 
         return null
     }
 
-    private fun getSourceCodeParserEntryPoint(): SourceCodeParserEntryPoint {
-        return SourceCodeParserEntryPoint(
-                MetricCalculator(AntlrJavaCodeTagProvider(System.err)),
-                getPrinter()
-        )
-    }
-
-    private fun getPrinter(): MetricWriter {
+    private fun getMetricWriter(): MetricWriter {
         return when (outputFormat) {
-            OutputFormat.JSON  -> JsonMetricWriter(getWriter(), projectName)
-            OutputFormat.TABLE -> TableMetricWriter(getWriter())
+            OutputFormat.JSON -> JSONMetricWriter(projectName, getOutputWriter())
+            OutputFormat.TABLE -> CSVMetricWriter(getOutputWriter())
         }
     }
 
-    private fun getWriter(): Writer {
+    private fun getOutputWriter(): Writer {
         return if (outputFile == null) {
             OutputStreamWriter(outputStream)
         } else {
-            BufferedWriter(FileWriter(outputFile))
+            BufferedWriter(FileWriter(outputFile!!))
         }
     }
 
@@ -83,6 +100,11 @@ class SourceCodeParserMain(private val outputStream: PrintStream): Callable<Void
         @JvmStatic
         fun mainWithOutputStream(outputStream: PrintStream, args: Array<String>) {
             call(SourceCodeParserMain(outputStream), System.out, *args)
+        }
+
+        @JvmStatic
+        fun mainWithInOut(outputStream: PrintStream, input: InputStream, error: PrintStream, args: Array<String>) {
+            call(SourceCodeParserMain(outputStream, input, error), outputStream, *args)
         }
     }
 }

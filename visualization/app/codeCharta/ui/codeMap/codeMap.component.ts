@@ -1,18 +1,20 @@
+import "./codeMap.component.scss"
 import { CodeMapBuilding } from "./rendering/codeMapBuilding"
 import { ThreeViewerService } from "./threeViewer/threeViewerService"
-import { CodeMapBuildingTransition, CodeMapMouseEventService, CodeMapMouseEventServiceSubscriber } from "./codeMap.mouseEvent.service"
-
-import "./codeMap.component.scss"
-
-import angular, { IRootScopeService, ITimeoutService } from "angular"
+import { BuildingRightClickedEventSubscriber, CodeMapMouseEventService } from "./codeMap.mouseEvent.service"
+import { IRootScopeService, ITimeoutService } from "angular"
 import { NodeContextMenuController } from "../nodeContextMenu/nodeContextMenu.component"
-import { LoadingGifComponentSubscriber, LoadingGifService } from "../loadingGif/loadingGif.service"
+import { AttributeSideBarService, AttributeSideBarVisibilitySubscriber } from "../attributeSideBar/attributeSideBar.service"
+import { LoadingStatusServiceSubscriber, LoadingStatusService } from "../../state/loadingStatus.service"
 
-export class CodeMapController implements CodeMapMouseEventServiceSubscriber, LoadingGifComponentSubscriber {
+export class CodeMapController
+	implements BuildingRightClickedEventSubscriber, LoadingStatusServiceSubscriber, AttributeSideBarVisibilitySubscriber {
 	private _viewModel: {
 		isLoadingFile: boolean
+		isSideBarVisible: boolean
 	} = {
-		isLoadingFile: true
+		isLoadingFile: true,
+		isSideBarVisible: null
 	}
 
 	/* @ngInject */
@@ -23,8 +25,9 @@ export class CodeMapController implements CodeMapMouseEventServiceSubscriber, Lo
 		private threeViewerService: ThreeViewerService,
 		private codeMapMouseEventService: CodeMapMouseEventService
 	) {
-		CodeMapMouseEventService.subscribe(this.$rootScope, this)
-		LoadingGifService.subscribe(this.$rootScope, this)
+		CodeMapMouseEventService.subscribeToBuildingRightClickedEvents(this.$rootScope, this)
+		AttributeSideBarService.subscribe(this.$rootScope, this)
+		LoadingStatusService.subscribe(this.$rootScope, this)
 	}
 
 	public $postLink() {
@@ -33,7 +36,7 @@ export class CodeMapController implements CodeMapMouseEventServiceSubscriber, Lo
 		this.codeMapMouseEventService.start()
 	}
 
-	public onBuildingRightClicked(building: CodeMapBuilding, x: number, y: number, event: angular.IAngularEvent) {
+	public onBuildingRightClicked(building: CodeMapBuilding, x: number, y: number) {
 		NodeContextMenuController.broadcastHideEvent(this.$rootScope)
 		if (building) {
 			const nodeType = building.node.isLeaf ? "File" : "Folder"
@@ -41,16 +44,16 @@ export class CodeMapController implements CodeMapMouseEventServiceSubscriber, Lo
 		}
 	}
 
-	public onBuildingHovered(data: CodeMapBuildingTransition, event: angular.IAngularEvent) {}
+	public onAttributeSideBarVisibilityChanged(isAttributeSideBarVisible: boolean) {
+		this._viewModel.isSideBarVisible = isAttributeSideBarVisible
+	}
 
-	public onBuildingSelected(data: CodeMapBuildingTransition, event: angular.IAngularEvent) {}
-
-	public onLoadingFileStatusChanged(isLoadingFile: boolean, event: angular.IAngularEvent) {
+	public onLoadingFileStatusChanged(isLoadingFile: boolean) {
 		this._viewModel.isLoadingFile = isLoadingFile
 		this.synchronizeAngularTwoWayBinding()
 	}
 
-	public onLoadingMapStatusChanged(isLoadingMap: boolean, event: angular.IAngularEvent) {}
+	public onLoadingMapStatusChanged(isLoadingMap: boolean) {}
 
 	private synchronizeAngularTwoWayBinding() {
 		this.$timeout(() => {})

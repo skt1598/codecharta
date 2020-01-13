@@ -1,62 +1,70 @@
 legend-panel-component {
+	$fixedHeight: 35;
 
-  .panel-button {
-    position: fixed;
-    top: 228px;
-    left: -35px;
-    transform: rotate(90deg);
-    z-index: 2;
-  }
+	.panel-button {
+		position: fixed;
+		bottom: ($fixedHeight + 20) + px;
+		right: -35px;
+		transform: rotate(90deg);
+		border-radius: 0 0 5px 5px;
 
-  .block-wrapper {
+		&.sideBarVisible {
+			right: 316px;
+		}
+	}
 
-    position: fixed;
-    z-index: 29;
-    top: 13em;
-    left: -500px; //initial state is closed
+	.block-wrapper {
+		position: fixed;
+		bottom: $fixedHeight + px;
+		background-color: #fff;
+		padding: 10px;
+		right: 40px;
+		visibility: hidden;
+		border-radius: 5px;
 
-    background-color: #fff;
-    padding: 10px;
+		&.sideBarVisible {
+			right: 390px;
+		}
 
+		&.visible {
+			visibility: visible;
+		}
 
-    hr {
-      border-right-style: none;
-      border-left-style: none;
-      border-bottom-style: none;
-      color: #000;
-    }
+		hr {
+			border-right-style: none;
+			border-left-style: none;
+			border-bottom-style: none;
+			color: #000;
+		}
 
-    .legend-block {
+		.legend-block {
+			display: block;
+			min-height: 25px;
+			margin-bottom: 5px;
+			max-width: 250px;
 
-      display: block;
-      min-height: 25px;
-      margin-bottom: 5px;
-      max-width: 250px;
+			i,
+			img {
+				display: inline-block;
+				width: 14px;
+			}
 
-      i, img {
-        display: inline-block;
-        width: 14px;
-      }
+			i {
+				margin-right: 4px;
+			}
 
-      i {
-        margin-right: 4px;
-      }
+			img {
+				padding-top: 3px;
+				height: 17px;
+			}
 
-      img {
-        padding-top: 3px;
-        height: 17px;
-      }
+			span {
+				display: inline-block;
+			}
 
-      span {
-        display: inline-block;
-      }
-
-      .set-left-margin {
-         margin-left: 18px;
-       }
-
-    }
-
-  }
-
+			.set-left-margin {
+				margin-left: 18px;
+			}
+		}
+	}
 }
